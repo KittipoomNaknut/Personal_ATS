@@ -22,7 +22,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any, Final, Protocol
 
 from ats_core.analysis.evidence import VerifiedJudgment, index_bullets, verify_judgment
 from ats_core.analysis.experience import DateParseError, Job, total_years
@@ -41,7 +41,100 @@ from ats_core.gateway_client import TaskResult
 from ats_core.pii import RedactionResult, redact_pii
 from ats_core.taxonomy import SkillTaxonomy, default_taxonomy
 
-__all__ = ["AiAnalysis", "AnalysisGateway", "RequirementResult", "run_ai_analysis"]
+__all__ = [
+    "AiAnalysis",
+    "AnalysisCancelled",
+    "AnalysisGateway",
+    "Estimate",
+    "RequirementResult",
+    "estimate_judging",
+    "run_ai_analysis",
+]
+
+JUDGE_TASK: Final = "judge.v1"
+_MIN_HISTORY: Final = 5
+# Before there is history: Opus 5.5 rates per million tokens. The first judge call
+# writes the resume to the cache, later ones read it; output includes thinking.
+_INPUT_RATE: Final = Decimal(4)
+_CACHE_WRITE_RATE: Final = Decimal(5)
+_CACHE_READ_RATE: Final = Decimal("0.20")
+_OUTPUT_RATE: Final = Decimal(20)
+_PROMPT_OVERHEAD_TOKENS: Final = 900  # instructions + requirement + facts
+_OUTPUT_TOKENS_LOW: Final = 300
+_OUTPUT_TOKENS_HIGH: Final = 2_000
+_CHARS_PER_TOKEN: Final = 3  # conservative for mixed Thai / English
+
+
+class AnalysisCancelled(Exception):
+    """The operator declined the cost estimate (a decision, not an error)."""
+
+    def __init__(self, analysis_id: str, cost_usd: Decimal) -> None:
+        super().__init__("analysis cancelled before judging")
+        self.analysis_id = analysis_id
+        self.cost_usd = cost_usd
+
+
+@dataclass(frozen=True, slots=True)
+class Estimate:
+    """Cost estimate for the judging phase (the expensive part)."""
+
+    calls_min: int
+    calls_max: int
+    judge_low: Decimal
+    judge_high: Decimal
+    spent: Decimal
+    """Already spent on this analysis (reading the JD and the resume)."""
+    basis: str
+    """"history" (recent real costs) or "token estimate" (no history yet)."""
+
+    @property
+    def total_low(self) -> Decimal:
+        return self.spent + self.judge_low
+
+    @property
+    def total_high(self) -> Decimal:
+        return self.spent + self.judge_high
+
+
+def _quantile(values: Sequence[Decimal], q: float) -> Decimal:
+    ordered = sorted(values)
+    index = min(len(ordered) - 1, max(0, round(q * (len(ordered) - 1))))
+    return ordered[index]
+
+
+def estimate_judging(
+    requirements: Sequence[Requirement],
+    bullets: Sequence[Bullet],
+    ledger: Ledger,
+    *,
+    spent: Decimal = Decimal(0),
+) -> Estimate:
+    """Required requirements take 2-3 calls, preferred ones 1."""
+    required = sum(1 for r in requirements if r.required)
+    calls_min = 2 * required + (len(requirements) - required)
+    calls_max = calls_min + required  # every required one might need a tiebreak
+    history = ledger.task_costs(JUDGE_TASK)
+    if calls_min == 0:
+        return Estimate(0, 0, Decimal(0), Decimal(0), spent, "no requirements")
+    if len(history) >= _MIN_HISTORY:
+        low = _quantile(history, 0.25) * calls_min
+        high = _quantile(history, 0.9) * calls_max
+        return Estimate(calls_min, calls_max, low, high, spent, "history")
+    resume_tokens = Decimal(sum(len(b.text) + 6 for b in bullets) // _CHARS_PER_TOKEN)
+    overhead = Decimal(_PROMPT_OVERHEAD_TOKENS) * _INPUT_RATE
+    per_million = Decimal(1_000_000)
+    cheapest = (
+        resume_tokens * _CACHE_READ_RATE + overhead + _OUTPUT_TOKENS_LOW * _OUTPUT_RATE
+    ) / per_million
+    first = (
+        resume_tokens * _CACHE_WRITE_RATE + overhead + _OUTPUT_TOKENS_HIGH * _OUTPUT_RATE
+    ) / per_million
+    dearest = (
+        resume_tokens * _CACHE_READ_RATE + overhead + _OUTPUT_TOKENS_HIGH * _OUTPUT_RATE
+    ) / per_million
+    low = cheapest * calls_min
+    high = first + dearest * (calls_max - 1)
+    return Estimate(calls_min, calls_max, low, high, spent, "token estimate")
 
 
 class AnalysisGateway(Protocol):
@@ -72,9 +165,9 @@ class RequirementResult:
     years: float | None
     """Computed years relevant to this requirement (only when it states a minimum)."""
     rationale: str
-    """The chosen judgment's rationale with placeholders restored (local display only)."""
+    """The chosen judgment's rationale (redacted: placeholders such as [NAME_1])."""
     evidence_text: tuple[str, ...]
-    """Cited resume lines with placeholders restored."""
+    """Cited resume lines (redacted), so reports never contain personal values."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,11 +275,15 @@ def run_ai_analysis(
     today: date | None = None,
     taxonomy: SkillTaxonomy | None = None,
     on_progress: Callable[[str], None] = lambda _message: None,
+    confirm: Callable[[Estimate], bool] | None = None,
 ) -> AiAnalysis:
     """Run the analysis.
 
     Raises :class:`~ats_core.gateway_client.GatewayError` when the gateway
     refuses or fails a step; the analysis is then marked failed in the ledger.
+
+    ``confirm`` is called with a cost estimate after the two cheap steps and
+    before the judging phase; returning False cancels (:class:`AnalysisCancelled`).
     """
     reference = today or date.today()
     taxonomy = taxonomy or default_taxonomy()
@@ -218,6 +315,14 @@ def run_ai_analysis(
             requirements, jobs, by_id, today=reference, taxonomy=taxonomy, warnings=warnings
         )
 
+        if confirm is not None:
+            estimate = estimate_judging(
+                requirements, bullets, ledger, spent=ledger.analysis_cost(analysis_id)
+            )
+            if not confirm(estimate):
+                ledger.finish_analysis(analysis_id, "cancelled")
+                raise AnalysisCancelled(analysis_id, ledger.analysis_cost(analysis_id))
+
         results: list[RequirementResult] = []
         for number, requirement in enumerate(requirements, start=1):
             on_progress(f"judging requirement {number} of {len(requirements)}")
@@ -247,12 +352,12 @@ def run_ai_analysis(
                     requirement=requirement,
                     consensus=consensus,
                     years=per_requirement.get(requirement.id),
-                    rationale=resume.restore(consensus.chosen.rationale),
-                    evidence_text=tuple(
-                        resume.restore(by_id[e.bullet_id]) for e in consensus.chosen.evidence
-                    ),
+                    rationale=consensus.chosen.rationale,
+                    evidence_text=tuple(by_id[e.bullet_id] for e in consensus.chosen.evidence),
                 )
             )
+    except AnalysisCancelled:
+        raise
     except BaseException:
         # Never leave an analysis "running": costs already spent stay attributed.
         ledger.finish_analysis(analysis_id, "failed")
