@@ -72,7 +72,8 @@ def test_json_report(jd_file: Path) -> None:
     code, out = run("check", str(EN_RESUME), "--jd", str(jd_file), "--json", "--lang", "en")
     assert code == EXIT_OK
     data = json.loads(out)
-    assert data["report_version"] == 1
+    assert data["report_version"] == 2
+    assert data["ai"] is None  # no --ai: nothing was sent anywhere
     assert data["format"] == "pdf"
     assert data["pages"] == 1
     assert data["parseability"]["score"] == 1.0
