@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Core analysis logic for the personal ATS resume checker (no infrastructure dependencies)."
 license = "MIT"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "pdfplumber>=0.11.11",
+    "pypdfium2>=5.15.2",
+    "python-docx>=1.2.0",
+]
 
 [build-system]
 requires = ["hatchling>=1.25"]

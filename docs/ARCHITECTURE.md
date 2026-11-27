@@ -181,9 +181,10 @@ JD ─────────────────────────�
 
 ### 3.1 Extract (local, worker)  
 
-- PDF: `PyMuPDF` (ข้อความ + ตำแหน่ง + font + สี) / `pdfplumber` สำหรับตาราง; DOCX: `python-docx`
-- OCR fallback (`tesseract` + `tha+eng`) ถ้าหน้านั้นไม่มี text layer
-- เก็บทั้ง raw text และ layout blocks
+- PDF: `pypdfium2` (PDFium) ดึงข้อความ ตำแหน่ง ขนาด font สี และ render mode ราย character แล้วประกอบบรรทัดเองจากพิกัด (จัดกลุ่มตาม baseline, สระ/วรรณยุกต์ไทยติดกับพยัญชนะ, เว้นวรรคเมื่อช่องว่าง > 0.25 em); `pdfplumber` ใช้เฉพาะตรวจตารางที่มีเส้น
+- DOCX: `python-docx` แยกเนื้อหา body / table / header / footer / text box
+- ไม่ทำ OCR: หน้าที่เป็นภาพสแกนถูกรายงานเป็นปัญหา (`no_text_layer`) เพราะ ATS จริงก็อ่านไม่ได้เช่นกัน
+- ตรวจไฟล์จาก magic bytes ไม่ใช่นามสกุล, จำกัดขนาด 10 MB, ≤ 20 หน้า, กัน zip bomb ของ DOCX
 
 ### 3.2 Parseability audit (local, rule-based) — จำลองว่า ATS อ่านได้แค่ไหน  
 
@@ -192,9 +193,9 @@ JD ─────────────────────────�
 | หลายคอลัมน์ / ตาราง / text box | ATS หลายเจ้าอ่านลำดับผิด |
 | ข้อมูลสำคัญใน header/footer | มักถูกข้าม |
 | รูปภาพที่มีข้อความ, ไอคอนแทนคำ | อ่านไม่ได้ |
-| **ภาษาไทยที่ extract แล้วเพี้ยน** (สระ/วรรณยุกต์ลอย, font ไม่มี ToUnicode) | ATS ก็อ่านเพี้ยนเหมือนกัน — ตรวจด้วยอัตรา Thai syllable ที่ valid จาก PyThaiNLP |
+| **ข้อความเพี้ยน** (font ไม่มี Unicode map, `(cid:N)`, legacy Thai PUA U+F700–F71F, ลำดับสระ/วรรณยุกต์ผิด, ตัวอักษรแยกด้วยช่องว่าง) | ATS ก็อ่านเพี้ยนเหมือนกัน — ใช้ทั้งสัญญาณจาก PDFium (`HasUnicodeMapError`) และกฎอักขรวิธีไทยแบบ conservative |
 | หัวข้อ section ไม่มาตรฐาน | ATS แยก section ไม่ได้ |
-| ข้อความซ่อน (สีขาว, ขนาดเล็กมาก) | keyword stuffing → red flag |
+| ข้อความซ่อน (contrast กับพื้นหลังที่ render จริง < 0.12, render mode invisible, โปร่งใส, < 2 pt) | keyword stuffing → red flag; ตัวหนังสือขาวบน sidebar สีเข้มไม่ถูกนับ |
 | วันที่รูปแบบไม่สม่ำเสมอ / พ.ศ. ปน ค.ศ. | คำนวณประสบการณ์ผิด |
 | ไฟล์ใหญ่ / จำนวนหน้า | เกณฑ์ทั่วไป |
 
@@ -393,3 +394,5 @@ tilt up                   # build + deploy + live reload
 | D5 | ไม่ใช้ API citations, ใช้ bullet_id | ใช้ร่วมกับ structured outputs ได้ และตรวจแบบ deterministic | citations + parse ข้อความ |
 | D6 | Embeddings local (bge-m3) | multilingual ดี, ไม่ต้องส่งข้อมูลออก | embedding API ภายนอก |
 | D7 | k3d + egress proxy แทน Cilium | ติดตั้งง่ายบนเครื่องเดียว แต่ยังกรอง FQDN ได้ | Cilium FQDN policy (เรียนรู้เยอะกว่า) |
+| D8 | PDFium (`pypdfium2`) ดึงข้อความ PDF | ทดสอบกับ PDF จริงจาก LibreOffice 6 font ไทย: pdfminer อ่านไทยเพี้ยน (cid/ตัวผิด) ทั้งที่ไฟล์ถูกต้อง ทำให้แจ้ง error ผิดกับ resume ที่ดี; PDFium อ่านตัวอักษรถูก 56/60 บรรทัด | pdfminer/pdfplumber (ไทยเพี้ยน), PyMuPDF (AGPL ไม่เข้ากับ MIT), poppler (GPL) |
+| D9 | ตัดสินข้อความซ่อนด้วย contrast กับพื้นหลังที่ render จริง | กฎ "สีขาว = ซ่อน" แจ้งเตือนผิดกับ resume ที่มี sidebar สีเข้ม | ตรวจเฉพาะสีของตัวอักษร |
