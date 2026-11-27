@@ -1,0 +1,702 @@
+# Bilingual skill taxonomy.
+#
+# Fields
+#   id          stable identifier (snake_case, unique)
+#   name        display name
+#   category    grouping for reports
+#   aliases     English / Latin-script spellings, matched case-insensitively.
+#               A space also matches a hyphen or several spaces ("full stack" = "full-stack").
+#   exact_case  spellings that are ordinary English words in lower case, so they
+#               only count when written exactly like this ("Go", "React", "Excel").
+#   aliases_th  Thai spellings, matched on PyThaiNLP word boundaries.
+#
+# Every alias must map to exactly one skill; the loader rejects duplicates.
+
+# ── Programming languages ────────────────────────────────────────────────
+
+[[skill]]
+id = "python"
+name = "Python"
+category = "programming_language"
+aliases = ["python", "python3", "python 3"]
+aliases_th = ["ไพธอน", "ภาษาไพธอน", "ไพทอน"]
+
+[[skill]]
+id = "java"
+name = "Java"
+category = "programming_language"
+aliases = ["java"]
+aliases_th = ["ภาษาจาวา", "จาวา"]
+
+[[skill]]
+id = "javascript"
+name = "JavaScript"
+category = "programming_language"
+aliases = ["javascript", "java script", "ecmascript", "es6"]
+exact_case = ["JS"]
+aliases_th = ["จาวาสคริปต์"]
+
+[[skill]]
+id = "typescript"
+name = "TypeScript"
+category = "programming_language"
+aliases = ["typescript"]
+exact_case = ["TS"]
+
+[[skill]]
+id = "go"
+name = "Go"
+category = "programming_language"
+aliases = ["golang"]
+exact_case = ["Go"]
+
+[[skill]]
+id = "rust"
+name = "Rust"
+category = "programming_language"
+exact_case = ["Rust"]
+
+[[skill]]
+id = "c"
+name = "C"
+category = "programming_language"
+exact_case = ["C"]
+
+[[skill]]
+id = "cpp"
+name = "C++"
+category = "programming_language"
+aliases = ["c++", "cpp"]
+
+[[skill]]
+id = "csharp"
+name = "C#"
+category = "programming_language"
+aliases = ["c#", "csharp", "c sharp"]
+
+[[skill]]
+id = "php"
+name = "PHP"
+category = "programming_language"
+aliases = ["php"]
+
+[[skill]]
+id = "ruby"
+name = "Ruby"
+category = "programming_language"
+exact_case = ["Ruby"]
+
+[[skill]]
+id = "kotlin"
+name = "Kotlin"
+category = "programming_language"
+aliases = ["kotlin"]
+
+[[skill]]
+id = "swift"
+name = "Swift"
+category = "programming_language"
+exact_case = ["Swift"]
+
+[[skill]]
+id = "scala"
+name = "Scala"
+category = "programming_language"
+aliases = ["scala"]
+
+[[skill]]
+id = "r"
+name = "R"
+category = "programming_language"
+exact_case = ["R"]
+
+[[skill]]
+id = "sql"
+name = "SQL"
+category = "programming_language"
+aliases = ["sql"]
+
+[[skill]]
+id = "bash"
+name = "Bash / Shell scripting"
+category = "programming_language"
+aliases = ["bash", "shell script", "shell scripting", "shell scripts"]
+
+# ── Frameworks and libraries ─────────────────────────────────────────────
+
+[[skill]]
+id = "django"
+name = "Django"
+category = "framework"
+aliases = ["django"]
+
+[[skill]]
+id = "flask"
+name = "Flask"
+category = "framework"
+aliases = ["flask"]
+
+[[skill]]
+id = "fastapi"
+name = "FastAPI"
+category = "framework"
+aliases = ["fastapi", "fast api"]
+
+[[skill]]
+id = "spring"
+name = "Spring"
+category = "framework"
+aliases = ["spring boot", "springboot", "spring framework"]
+exact_case = ["Spring"]
+
+[[skill]]
+id = "react"
+name = "React"
+category = "framework"
+aliases = ["react.js", "reactjs", "react js"]
+exact_case = ["React"]
+
+[[skill]]
+id = "react_native"
+name = "React Native"
+category = "framework"
+aliases = ["react native"]
+
+[[skill]]
+id = "angular"
+name = "Angular"
+category = "framework"
+aliases = ["angular", "angularjs"]
+
+[[skill]]
+id = "vue"
+name = "Vue.js"
+category = "framework"
+aliases = ["vue", "vue.js", "vuejs"]
+
+[[skill]]
+id = "nextjs"
+name = "Next.js"
+category = "framework"
+aliases = ["next.js", "nextjs"]
+
+[[skill]]
+id = "nodejs"
+name = "Node.js"
+category = "framework"
+aliases = ["node.js", "nodejs", "node js"]
+exact_case = ["Node"]
+
+[[skill]]
+id = "express"
+name = "Express"
+category = "framework"
+aliases = ["express.js", "expressjs"]
+exact_case = ["Express"]
+
+[[skill]]
+id = "dotnet"
+name = ".NET"
+category = "framework"
+aliases = [".net", "dotnet", "asp.net", ".net core"]
+
+[[skill]]
+id = "laravel"
+name = "Laravel"
+category = "framework"
+aliases = ["laravel"]
+
+[[skill]]
+id = "flutter"
+name = "Flutter"
+category = "framework"
+aliases = ["flutter"]
+
+[[skill]]
+id = "pandas"
+name = "pandas"
+category = "data"
+aliases = ["pandas"]
+
+[[skill]]
+id = "numpy"
+name = "NumPy"
+category = "data"
+aliases = ["numpy"]
+
+[[skill]]
+id = "scikit_learn"
+name = "scikit-learn"
+category = "ai_ml"
+aliases = ["scikit-learn", "scikit learn", "sklearn"]
+
+[[skill]]
+id = "tensorflow"
+name = "TensorFlow"
+category = "ai_ml"
+aliases = ["tensorflow"]
+
+[[skill]]
+id = "pytorch"
+name = "PyTorch"
+category = "ai_ml"
+aliases = ["pytorch"]
+
+# ── Databases ────────────────────────────────────────────────────────────
+
+[[skill]]
+id = "postgresql"
+name = "PostgreSQL"
+category = "database"
+aliases = ["postgresql", "postgres"]
+aliases_th = ["โพสต์เกรส"]
+
+[[skill]]
+id = "mysql"
+name = "MySQL"
+category = "database"
+aliases = ["mysql"]
+
+[[skill]]
+id = "sql_server"
+name = "Microsoft SQL Server"
+category = "database"
+aliases = ["sql server", "mssql", "ms sql"]
+
+[[skill]]
+id = "oracle_db"
+name = "Oracle Database"
+category = "database"
+aliases = ["oracle database", "oracle db", "pl/sql"]
+
+[[skill]]
+id = "mongodb"
+name = "MongoDB"
+category = "database"
+aliases = ["mongodb", "mongo"]
+
+[[skill]]
+id = "redis"
+name = "Redis"
+category = "database"
+aliases = ["redis"]
+
+[[skill]]
+id = "elasticsearch"
+name = "Elasticsearch"
+category = "database"
+aliases = ["elasticsearch", "elastic search", "opensearch"]
+
+[[skill]]
+id = "nosql"
+name = "NoSQL"
+category = "database"
+aliases = ["nosql"]
+
+# ── Cloud and DevOps ─────────────────────────────────────────────────────
+
+[[skill]]
+id = "aws"
+name = "Amazon Web Services"
+category = "cloud"
+aliases = ["aws", "amazon web services"]
+
+[[skill]]
+id = "gcp"
+name = "Google Cloud"
+category = "cloud"
+aliases = ["gcp", "google cloud", "google cloud platform"]
+
+[[skill]]
+id = "azure"
+name = "Microsoft Azure"
+category = "cloud"
+aliases = ["azure", "microsoft azure"]
+
+[[skill]]
+id = "docker"
+name = "Docker"
+category = "devops"
+aliases = ["docker"]
+aliases_th = ["ด็อกเกอร์"]
+
+[[skill]]
+id = "kubernetes"
+name = "Kubernetes"
+category = "devops"
+aliases = ["kubernetes", "k8s"]
+aliases_th = ["คูเบอร์เนทีส", "คูเบอร์เนติส"]
+
+[[skill]]
+id = "terraform"
+name = "Terraform"
+category = "devops"
+aliases = ["terraform"]
+
+[[skill]]
+id = "ansible"
+name = "Ansible"
+category = "devops"
+aliases = ["ansible"]
+
+[[skill]]
+id = "ci_cd"
+name = "CI/CD"
+category = "devops"
+aliases = ["ci/cd", "ci cd", "cicd", "continuous integration", "continuous delivery", "continuous deployment"]
+
+[[skill]]
+id = "jenkins"
+name = "Jenkins"
+category = "devops"
+aliases = ["jenkins"]
+
+[[skill]]
+id = "github_actions"
+name = "GitHub Actions"
+category = "devops"
+aliases = ["github actions"]
+
+[[skill]]
+id = "gitlab_ci"
+name = "GitLab CI"
+category = "devops"
+aliases = ["gitlab ci", "gitlab-ci"]
+
+[[skill]]
+id = "git"
+name = "Git"
+category = "tool"
+aliases = ["git"]
+
+[[skill]]
+id = "linux"
+name = "Linux"
+category = "devops"
+aliases = ["linux", "ubuntu", "centos", "rhel"]
+
+[[skill]]
+id = "microservices"
+name = "Microservices"
+category = "architecture"
+aliases = ["microservices", "microservice", "micro-services"]
+aliases_th = ["ไมโครเซอร์วิส"]
+
+[[skill]]
+id = "rest_api"
+name = "REST API"
+category = "architecture"
+aliases = ["rest api", "restful", "rest apis", "restful api", "restful apis"]
+
+[[skill]]
+id = "graphql"
+name = "GraphQL"
+category = "architecture"
+aliases = ["graphql"]
+
+[[skill]]
+id = "kafka"
+name = "Apache Kafka"
+category = "data"
+aliases = ["kafka", "apache kafka"]
+
+[[skill]]
+id = "rabbitmq"
+name = "RabbitMQ"
+category = "data"
+aliases = ["rabbitmq"]
+
+[[skill]]
+id = "prometheus"
+name = "Prometheus"
+category = "devops"
+aliases = ["prometheus"]
+
+[[skill]]
+id = "grafana"
+name = "Grafana"
+category = "devops"
+aliases = ["grafana"]
+
+# ── Data and AI ──────────────────────────────────────────────────────────
+
+[[skill]]
+id = "spark"
+name = "Apache Spark"
+category = "data"
+aliases = ["apache spark", "pyspark"]
+exact_case = ["Spark"]
+
+[[skill]]
+id = "airflow"
+name = "Apache Airflow"
+category = "data"
+aliases = ["airflow", "apache airflow"]
+
+[[skill]]
+id = "dbt"
+name = "dbt"
+category = "data"
+exact_case = ["dbt", "DBT"]
+
+[[skill]]
+id = "etl"
+name = "ETL / ELT"
+category = "data"
+aliases = ["etl", "elt", "data pipeline", "data pipelines"]
+
+[[skill]]
+id = "data_warehouse"
+name = "Data warehousing"
+category = "data"
+aliases = ["data warehouse", "data warehousing", "bigquery", "snowflake", "redshift"]
+aliases_th = ["คลังข้อมูล"]
+
+[[skill]]
+id = "machine_learning"
+name = "Machine learning"
+category = "ai_ml"
+aliases = ["machine learning"]
+exact_case = ["ML"]
+aliases_th = ["การเรียนรู้ของเครื่อง", "แมชชีนเลิร์นนิง"]
+
+[[skill]]
+id = "deep_learning"
+name = "Deep learning"
+category = "ai_ml"
+aliases = ["deep learning"]
+aliases_th = ["การเรียนรู้เชิงลึก"]
+
+[[skill]]
+id = "nlp"
+name = "Natural language processing"
+category = "ai_ml"
+aliases = ["natural language processing"]
+exact_case = ["NLP"]
+aliases_th = ["การประมวลผลภาษาธรรมชาติ"]
+
+[[skill]]
+id = "llm"
+name = "Large language models"
+category = "ai_ml"
+aliases = ["large language model", "large language models", "llm", "llms", "generative ai", "genai"]
+
+[[skill]]
+id = "computer_vision"
+name = "Computer vision"
+category = "ai_ml"
+aliases = ["computer vision"]
+aliases_th = ["คอมพิวเตอร์วิทัศน์"]
+
+[[skill]]
+id = "data_analysis"
+name = "Data analysis"
+category = "data"
+aliases = ["data analysis", "data analytics"]
+aliases_th = ["การวิเคราะห์ข้อมูล"]
+
+[[skill]]
+id = "statistics"
+name = "Statistics"
+category = "data"
+aliases = ["statistics", "statistical analysis"]
+aliases_th = ["สถิติ"]
+
+[[skill]]
+id = "power_bi"
+name = "Power BI"
+category = "tool"
+aliases = ["power bi", "powerbi"]
+
+[[skill]]
+id = "tableau"
+name = "Tableau"
+category = "tool"
+aliases = ["tableau"]
+
+[[skill]]
+id = "excel"
+name = "Microsoft Excel"
+category = "tool"
+aliases = ["ms excel", "microsoft excel"]
+exact_case = ["Excel"]
+
+# ── Design, product and testing ──────────────────────────────────────────
+
+[[skill]]
+id = "figma"
+name = "Figma"
+category = "design"
+aliases = ["figma"]
+
+[[skill]]
+id = "ux_ui"
+name = "UX/UI design"
+category = "design"
+aliases = ["ux/ui", "ui/ux", "ux design", "ui design", "user experience", "user interface design"]
+
+[[skill]]
+id = "unit_testing"
+name = "Unit testing"
+category = "quality"
+aliases = ["unit test", "unit tests", "unit testing", "pytest", "junit", "jest"]
+
+[[skill]]
+id = "test_automation"
+name = "Test automation"
+category = "quality"
+aliases = ["test automation", "automated testing", "selenium", "cypress", "playwright"]
+
+[[skill]]
+id = "jira"
+name = "Jira"
+category = "tool"
+aliases = ["jira"]
+
+# ── Methodologies ────────────────────────────────────────────────────────
+
+[[skill]]
+id = "agile"
+name = "Agile"
+category = "methodology"
+aliases = ["agile"]
+aliases_th = ["อไจล์", "แอไจล์"]
+
+[[skill]]
+id = "scrum"
+name = "Scrum"
+category = "methodology"
+aliases = ["scrum"]
+
+[[skill]]
+id = "project_management"
+name = "Project management"
+category = "business"
+aliases = ["project management", "pmp"]
+aliases_th = ["การบริหารโครงการ", "การจัดการโครงการ"]
+
+[[skill]]
+id = "system_design"
+name = "System design"
+category = "architecture"
+aliases = ["system design", "system architecture", "software architecture"]
+aliases_th = ["การออกแบบระบบ"]
+
+[[skill]]
+id = "security"
+name = "Information security"
+category = "security"
+aliases = ["information security", "cybersecurity", "cyber security", "application security", "owasp"]
+aliases_th = ["ความปลอดภัยไซเบอร์", "ความปลอดภัยของข้อมูล"]
+
+# ── Business ─────────────────────────────────────────────────────────────
+
+[[skill]]
+id = "digital_marketing"
+name = "Digital marketing"
+category = "business"
+aliases = ["digital marketing", "seo", "sem", "google ads", "facebook ads"]
+aliases_th = ["การตลาดดิจิทัล"]
+
+[[skill]]
+id = "sales"
+name = "Sales"
+category = "business"
+aliases = ["sales", "b2b sales", "business development"]
+aliases_th = ["งานขาย", "การขาย"]
+
+[[skill]]
+id = "accounting"
+name = "Accounting"
+category = "business"
+aliases = ["accounting", "bookkeeping"]
+# A bare "บัญชี" also means a user / bank account, so it is not an alias.
+aliases_th = ["การบัญชี", "งานบัญชี", "ด้านบัญชี", "นักบัญชี"]
+
+[[skill]]
+id = "customer_service"
+name = "Customer service"
+category = "business"
+aliases = ["customer service", "customer support"]
+aliases_th = ["บริการลูกค้า", "การบริการลูกค้า"]
+
+# ── Soft skills ──────────────────────────────────────────────────────────
+
+[[skill]]
+id = "teamwork"
+name = "Teamwork"
+category = "soft_skill"
+aliases = ["teamwork", "team player", "team work", "collaboration"]
+aliases_th = ["การทำงานเป็นทีม", "ทำงานเป็นทีม"]
+
+[[skill]]
+id = "communication"
+name = "Communication"
+category = "soft_skill"
+aliases = ["communication", "communication skills"]
+aliases_th = ["การสื่อสาร", "ทักษะการสื่อสาร"]
+
+[[skill]]
+id = "leadership"
+name = "Leadership"
+category = "soft_skill"
+aliases = ["leadership", "team lead", "team leadership"]
+aliases_th = ["ภาวะผู้นำ", "ความเป็นผู้นำ"]
+
+[[skill]]
+id = "problem_solving"
+name = "Problem solving"
+category = "soft_skill"
+aliases = ["problem solving", "problem-solving"]
+aliases_th = ["การแก้ปัญหา", "ทักษะการแก้ปัญหา"]
+
+[[skill]]
+id = "analytical_thinking"
+name = "Analytical thinking"
+category = "soft_skill"
+aliases = ["analytical thinking", "analytical skills", "critical thinking"]
+aliases_th = ["การคิดวิเคราะห์"]
+
+[[skill]]
+id = "time_management"
+name = "Time management"
+category = "soft_skill"
+aliases = ["time management"]
+aliases_th = ["การบริหารเวลา"]
+
+[[skill]]
+id = "presentation"
+name = "Presentation"
+category = "soft_skill"
+aliases = ["presentation skills", "presentation", "public speaking"]
+aliases_th = ["การนำเสนอ"]
+
+# ── Languages ────────────────────────────────────────────────────────────
+
+[[skill]]
+id = "english"
+name = "English"
+category = "language"
+aliases = ["english", "toeic", "ielts", "toefl"]
+aliases_th = ["ภาษาอังกฤษ"]
+
+[[skill]]
+id = "thai_language"
+name = "Thai"
+category = "language"
+exact_case = ["Thai"]
+aliases_th = ["ภาษาไทย"]
+
+[[skill]]
+id = "japanese"
+name = "Japanese"
+category = "language"
+aliases = ["japanese", "jlpt"]
+aliases_th = ["ภาษาญี่ปุ่น"]
+
+[[skill]]
+id = "chinese"
+name = "Chinese"
+category = "language"
+aliases = ["chinese", "mandarin", "hsk"]
+aliases_th = ["ภาษาจีน"]
