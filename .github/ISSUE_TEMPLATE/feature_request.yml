@@ -1,0 +1,26 @@
+name: Feature / task
+description: A new capability or a planned piece of work
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / goal
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How do we verify this is done?
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Roadmap phase
+      options: ["0 Foundation", "1 Core local", "2 Claude", "3 Eval", "4 Kubernetes", "5 UI & report"]

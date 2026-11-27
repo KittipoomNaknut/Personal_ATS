@@ -1,0 +1,68 @@
+[project]
+name = "personal-ats"
+version = "0.1.0"
+description = "Personal ATS resume checker (Thai + English) powered by Claude, running on Kubernetes."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = ["ats-core"]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+ats-core = { workspace = true }
+
+[dependency-groups]
+dev = [
+  "mypy>=1.13",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff==0.17.6",
+]
+
+# ── Ruff ────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["packages/*/src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "S",        # bandit (security)
+  "SIM",      # simplify
+  "RUF",      # ruff-specific
+  "PT",       # pytest style
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+
+# ── Mypy ────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["ats_core"]
+mypy_path = "packages/ats_core/src"
+
+# ── Pytest / coverage ───────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["packages"]
+addopts = "-ra --strict-markers --strict-config --cov --cov-report=term-missing"
+xfail_strict = true
+
+[tool.coverage.run]
+source = ["ats_core"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
