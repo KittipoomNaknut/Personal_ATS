@@ -409,3 +409,15 @@ def test_unmapped_characters_threshold(unmapped: int, char_count: int, garbled: 
     assert bool(found) is garbled
     if garbled:
         assert "without a Unicode mapping" in found[0].details["reason"]
+
+
+def test_visible_text_skips_mostly_hidden_lines() -> None:
+    doc = pdf_doc(
+        [
+            TextLine("Python developer", page=1),
+            TextLine("terraform ansible", page=1, hidden_chars=16),
+            TextLine("Docker and k8s", page=1, hidden_chars=3),  # partly hidden: kept
+        ]
+    )
+    assert doc.visible_text == "Python developer\nDocker and k8s"
+    assert "terraform" in doc.text
