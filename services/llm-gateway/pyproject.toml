@@ -1,0 +1,25 @@
+[project]
+name = "ats-gateway"
+version = "0.1.0"
+description = "The only component that talks to the Claude API: key handling, PII guard, budget and cost recording."
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "anthropic>=2.14.0",
+    "ats-core",
+    "fastapi>=0.165.0",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+ats-gateway = "ats_gateway.server:main"
+
+[tool.uv.sources]
+ats-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ats_gateway"]
