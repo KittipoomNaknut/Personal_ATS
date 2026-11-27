@@ -31,6 +31,7 @@ from ats_gateway.control import (
 )
 from fakes import FAKE_KEY
 
+OFFLINE = ("--skip-upstream-check",)  # tests never call the real API
 TMPFS = Path("/dev/shm")  # noqa: S108 - private mkdtemp dirs inside a tmpfs mount
 needs_tmpfs = pytest.mark.skipif(
     filesystem_type(TMPFS) != "tmpfs", reason="needs a tmpfs mount at /dev/shm"
@@ -74,7 +75,13 @@ def messages() -> list[str]:
 
 @pytest.fixture
 def controller(paths: Paths, messages: list[str]) -> Iterator[Controller]:
-    ctl = Controller(paths=paths, secrets=FakeSecrets(), env=clean_env(), out=messages.append)
+    ctl = Controller(
+        gateway_args=OFFLINE,
+        paths=paths,
+        secrets=FakeSecrets(),
+        env=clean_env(),
+        out=messages.append,
+    )
     try:
         yield ctl
     finally:
@@ -182,7 +189,7 @@ def test_logs_are_redacted_and_readable(controller: Controller) -> None:
 
 
 def test_logs_without_file(paths: Paths) -> None:
-    assert Controller(paths=paths, secrets=FakeSecrets()).logs() == []
+    assert Controller(gateway_args=OFFLINE, paths=paths, secrets=FakeSecrets()).logs() == []
 
 
 # ── Failed starts leave nothing behind ───────────────────────────────────
@@ -196,7 +203,11 @@ def assert_nothing_left(paths: Paths) -> None:
 @needs_tmpfs
 def test_invalid_key_fails_and_is_removed(paths: Paths) -> None:
     ctl = Controller(
-        paths=paths, secrets=FakeSecrets(value=b"not-a-key"), env=clean_env(), out=lambda _: None
+        gateway_args=OFFLINE,
+        paths=paths,
+        secrets=FakeSecrets(value=b"not-a-key"),
+        env=clean_env(),
+        out=lambda _: None,
     )
     with pytest.raises(ControlError, match="exited during start"):
         ctl.start()
@@ -208,7 +219,9 @@ def test_invalid_key_fails_and_is_removed(paths: Paths) -> None:
 @needs_tmpfs
 def test_missing_keyring_entry(paths: Paths) -> None:
     secrets = FakeSecrets(error="no API key in the keyring")
-    ctl = Controller(paths=paths, secrets=secrets, env=clean_env(), out=lambda _: None)
+    ctl = Controller(
+        gateway_args=OFFLINE, paths=paths, secrets=secrets, env=clean_env(), out=lambda _: None
+    )
     with pytest.raises(ControlError, match="no API key"):
         ctl.start()
     assert_nothing_left(paths)
@@ -225,7 +238,12 @@ def test_gateway_that_never_becomes_healthy(
     wrapper.write_text(f"#!/bin/sh\nexec {sys.executable} {hang}\n")
     wrapper.chmod(0o700)
     ctl = Controller(
-        paths=paths, secrets=FakeSecrets(), env=clean_env(), python=str(wrapper), out=lambda _: None
+        gateway_args=OFFLINE,
+        paths=paths,
+        secrets=FakeSecrets(),
+        env=clean_env(),
+        python=str(wrapper),
+        out=lambda _: None,
     )
     with pytest.raises(ControlError, match="did not become healthy"):
         ctl.start()
@@ -235,7 +253,12 @@ def test_gateway_that_never_becomes_healthy(
 @needs_tmpfs
 def test_invalid_budget_fails_cleanly(paths: Paths) -> None:
     ctl = Controller(
-        paths=paths, secrets=FakeSecrets(), env=clean_env(), daily_budget="lots", out=lambda _: None
+        gateway_args=OFFLINE,
+        paths=paths,
+        secrets=FakeSecrets(),
+        env=clean_env(),
+        daily_budget="lots",
+        out=lambda _: None,
     )
     with pytest.raises(ControlError, match="exited during start"):
         ctl.start()
@@ -250,7 +273,9 @@ def test_runtime_dir_must_be_tmpfs(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(control, "filesystem_type", lambda _path: "ext4")
     secrets = FakeSecrets()
     paths = Paths(runtime=tmp_path / "run", data=tmp_path / "data", state=tmp_path / "state")
-    ctl = Controller(paths=paths, secrets=secrets, env=clean_env(), out=lambda _: None)
+    ctl = Controller(
+        gateway_args=OFFLINE, paths=paths, secrets=secrets, env=clean_env(), out=lambda _: None
+    )
     try:
         with pytest.raises(ControlError, match="not on tmpfs"):
             ctl.start()
@@ -264,20 +289,28 @@ def test_unsafe_environment_is_refused(paths: Paths) -> None:
     secrets = FakeSecrets()
     env = {**clean_env(), "ANTHROPIC_BASE_URL": "https://evil.example.com"}
     with pytest.raises(ControlError, match="ANTHROPIC_BASE_URL"):
-        Controller(paths=paths, secrets=secrets, env=env).start()
+        Controller(gateway_args=OFFLINE, paths=paths, secrets=secrets, env=env).start()
     assert secrets.fetched == 0
 
 
 @needs_tmpfs
 def test_missing_secret_tool_is_refused(paths: Paths) -> None:
     with pytest.raises(ControlError, match="secret-tool not found"):
-        Controller(paths=paths, secrets=FakeSecrets(present=False), env=clean_env()).start()
+        Controller(
+            gateway_args=OFFLINE, paths=paths, secrets=FakeSecrets(present=False), env=clean_env()
+        ).start()
 
 
 @needs_tmpfs
 def test_runtime_dir_permissions_are_tightened(paths: Paths) -> None:
     os.chmod(paths.runtime, 0o755)  # noqa: S103 - deliberately loose for the test
-    ctl = Controller(paths=paths, secrets=FakeSecrets(), env=clean_env(), out=lambda _: None)
+    ctl = Controller(
+        gateway_args=OFFLINE,
+        paths=paths,
+        secrets=FakeSecrets(),
+        env=clean_env(),
+        out=lambda _: None,
+    )
     try:
         ctl.start()
         assert mode(paths.runtime) == 0o700
@@ -381,25 +414,25 @@ def test_cli_lifecycle(
     monkeypatch.setenv("ATS_STATE_DIR", str(paths.state))
     secrets = FakeSecrets()
     try:
-        assert main(["status"], secrets=secrets) == control.EXIT_NOT_RUNNING
+        assert main(["status"], secrets=secrets, gateway_args=OFFLINE) == control.EXIT_NOT_RUNNING
         assert capsys.readouterr().out.strip() == "stopped"
 
-        assert main(["start", "--daily-budget", "1.50"], secrets=secrets) == 0
+        assert main(["start", "--daily-budget", "1.50"], secrets=secrets, gateway_args=OFFLINE) == 0
         assert "started" in capsys.readouterr().out
 
-        assert main(["status"], secrets=secrets) == 0
+        assert main(["status"], secrets=secrets, gateway_args=OFFLINE) == 0
         out = capsys.readouterr().out
         assert "running (pid" in out
         assert "spent today: 0 / 1.50 USD (remaining 1.50)" in out
         assert "model: claude-opus-5-5 (fallback claude-opus-5)" in out
 
-        assert main(["logs", "-n", "5"], secrets=secrets) == 0
+        assert main(["logs", "-n", "5"], secrets=secrets, gateway_args=OFFLINE) == 0
         assert capsys.readouterr().out.strip()
 
-        assert main(["restart"], secrets=secrets) == 0
+        assert main(["restart"], secrets=secrets, gateway_args=OFFLINE) == 0
         assert "started" in capsys.readouterr().out
     finally:
-        assert main(["stop"], secrets=secrets) == 0
+        assert main(["stop"], secrets=secrets, gateway_args=OFFLINE) == 0
     assert "stopped" in capsys.readouterr().out
 
 
@@ -448,7 +481,9 @@ def test_stop_escalates_to_sigkill(
         time.sleep(0.3)  # let it install the SIGTERM handler
         paths.pid_file.write_text(f"{process.pid}\n")
         monkeypatch.setattr(control, "STOP_TIMEOUT_SECONDS", 0.3)
-        Controller(paths=paths, secrets=FakeSecrets(), out=lambda _: None).stop()
+        Controller(
+            gateway_args=OFFLINE, paths=paths, secrets=FakeSecrets(), out=lambda _: None
+        ).stop()
         assert process.wait(timeout=5) == -signal.SIGKILL
     finally:
         if process.poll() is None:
@@ -495,3 +530,20 @@ def test_describe_without_start_time() -> None:
     text = control._describe(control.GatewayStatus(running=True, pid=7, health=health))
     assert "uptime" not in text
     assert "spent today: 0.5 / 2.00 USD (remaining 1.5)" in text
+
+
+@needs_tmpfs
+def test_atsctl_never_skips_the_startup_check_by_default(paths: Paths, tmp_path: Path) -> None:
+    record = tmp_path / "argv"
+    wrapper = tmp_path / "python"
+    wrapper.write_text(f'#!/bin/sh\necho "$@" > {record}\nexit 1\n')
+    wrapper.chmod(0o700)
+    ctl = Controller(
+        paths=paths, secrets=FakeSecrets(), env=clean_env(), python=str(wrapper), out=lambda _: None
+    )
+    with pytest.raises(ControlError):
+        ctl.start()
+    argv = record.read_text().split()
+    assert "serve" in argv
+    assert "--unlink-key-file" in argv
+    assert "--skip-upstream-check" not in argv

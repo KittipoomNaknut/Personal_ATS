@@ -252,6 +252,8 @@ class Controller:
     python: str = sys.executable
     require_tmpfs: bool = True
     out: Callable[[str], None] = print
+    gateway_args: Sequence[str] = ()
+    """Extra ``ats-gateway serve`` arguments; tests use it to skip the network check."""
 
     # ── State ───────────────────────────────────────────────────────────
 
@@ -324,6 +326,7 @@ class Controller:
                     "--unlink-key-file",
                     "--daily-budget",
                     self.daily_budget,
+                    *self.gateway_args,
                 ],
                 stdin=subprocess.DEVNULL,
                 stdout=log_fd,
@@ -443,13 +446,19 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None, *, secrets: SecretSource | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    secrets: SecretSource | None = None,
+    gateway_args: Sequence[str] = (),
+) -> int:
     args = _parser().parse_args(argv)
     try:
         controller = Controller(
             paths=Paths.from_env(os.environ),
             secrets=secrets or SecretToolSource(),
             daily_budget=getattr(args, "daily_budget", "2.00"),
+            gateway_args=gateway_args,
         )
         if args.command == "start":
             controller.start()

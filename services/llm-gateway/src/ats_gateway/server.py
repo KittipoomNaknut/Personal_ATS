@@ -27,6 +27,7 @@ from ats_gateway.app import GatewayState, create_app
 from ats_gateway.caller import DEFAULT_FALLBACK_MODEL, DEFAULT_MODEL, ClaudeCaller
 from ats_gateway.environment import API_BASE_URL, environment_problems
 from ats_gateway.keys import KeyFileError, load_api_key
+from ats_gateway.upstream import UpstreamCheckError, verify_upstream
 
 __all__ = ["bind_private_socket", "main", "socket_problems"]
 
@@ -80,6 +81,12 @@ def _parser() -> argparse.ArgumentParser:
     serve.add_argument("--daily-budget", default="2.00", help="USD per day (default 2.00)")
     serve.add_argument("--model", default=DEFAULT_MODEL)
     serve.add_argument("--fallback-model", default=DEFAULT_FALLBACK_MODEL)
+    serve.add_argument(
+        "--skip-upstream-check",
+        action="store_true",
+        help="do not verify the key and models at startup (offline tests only; atsctl never "
+        "sets it)",
+    )
     return parser
 
 
@@ -121,6 +128,11 @@ def main(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None
         )
     except ValueError as exc:
         return _fail(str(exc))
+    if not args.skip_upstream_check:
+        try:
+            verify_upstream(client, args.model, args.fallback_model)
+        except UpstreamCheckError as exc:
+            return _fail(f"startup check failed: {exc}")
 
     app = create_app(GatewayState(caller=caller, ledger=ledger, budget=budget))
     listener = bind_private_socket(args.socket)
