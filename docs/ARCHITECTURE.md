@@ -133,7 +133,7 @@ Anthropic Console                OS keyring (GNOME)           k3s (encrypted at 
   - **กัน false positive:** ป้ายต้องอยู่ต้น segment, คำอังกฤษต้องมี word boundary, คำนำหน้าไทยต้องตามด้วยชื่อ + นามสกุล และไม่ใช่คำประสม (นายจ้าง, นางพยาบาล)
   - **Fail closed:** gateway เรียก `find_residual_pii()` ซ้ำกับข้อความที่ลบแล้ว ถ้ายังเจออีเมล/เบอร์/เลขบัตร/URL โปรไฟล์ → ไม่ส่ง
   - ใช้ rule-based แทน NER model: ตรวจสอบได้, deterministic, ไม่ต้องโหลดโมเดลใหญ่; ทดสอบทั้ง recall (ต้องลบครบ) และ precision (ต้องไม่ลบเนื้อหางาน)
-- **Budget guard:** นับ token จาก `response.usage` ลง Postgres ถ้าเกิน daily budget → ปฏิเสธ request (HTTP 429) และ circuit breaker เมื่อ error ติดกัน
+- **Budget guard:** นับ token และเงินจาก `response.usage` ลง cost ledger (ดู §11) ถ้าเกิน daily budget ($2) → ปฏิเสธ request (HTTP 429) และ circuit breaker เมื่อ error ติดกัน
 - **Audit log:** เก็บ request id, task, token count, latency, model — **ไม่เก็บ** prompt/response เต็ม
 
 **Logging policy (ทุก service):**  
@@ -158,7 +158,7 @@ Anthropic Console                OS keyring (GNOME)           k3s (encrypted at 
 **Data at rest:**  
 
 - MinIO เปิด SSE, Postgres อยู่บน PVC (แนะนำให้ disk ของเครื่องเข้ารหัสด้วย LUKS อยู่แล้ว)
-- retention: ลบไฟล์ resume และผลวิเคราะห์อัตโนมัติหลัง N วัน (ค่าเริ่มต้น 90) ด้วย CronJob
+- การลบข้อมูล: **ไม่มีการลบอัตโนมัติ** (ผู้ใช้เลือกเก็บไว้เอง) — ลบด้วย `ats forget --client` ซึ่งลบไฟล์ ผลวิเคราะห์ และชื่อลูกค้า เหลือเฉพาะยอดเงินแบบไม่ระบุตัวตน
 
 ### 2.5 Repo & supply chain
 
@@ -373,10 +373,10 @@ tilt up                   # build + deploy + live reload
 | --- | --- | --- |
 | **0. Foundation** | git init, pre-commit (gitleaks), uv workspace, logging filter, threat model tests | repo ที่ปลอดภัยตั้งแต่ commit แรก |
 | **1. Core local** | extract + parseability + redaction + lexical match + CLI | `ats check resume.pdf jd.txt` ทำงานได้โดยไม่ใช้ Claude |
-| **2. Claude** | llm-gateway (key จากไฟล์), JD parse, structure, judge, evidence verification, scoring | รายงานเต็มผ่าน CLI |
+| **2. Claude** | cost ledger, llm-gateway (unix socket, key จาก tmpfs), `atsctl start/stop`, JD parse, structure, judge, evidence verification, scoring, คิดเงินรายลูกค้า | รายงานเต็มผ่าน CLI + ยอดเงินต่องาน (ดู §11) |
 | **3. Eval** | label ชุดข้อมูล, run_eval, calibrate น้ำหนัก | ตัวเลขความแม่นยำจริง |
 | **4. Kubernetes** | k3d, manifests, NetworkPolicy, RBAC, PSA, egress-proxy, Tilt | ทั้งระบบรันใน cluster แบบ hardened |
-| **5. UI & report** | Streamlit, login, export PDF, retention CronJob | ใช้งานจริงประจำวัน |
+| **5. UI & report** | Streamlit, login, export PDF, dashboard ค่าใช้จ่าย | ใช้งานจริงประจำวัน |
 
 **Security checklist ก่อนใส่ key จริงครั้งแรก (จบเฟส 2):**  
 
@@ -409,3 +409,80 @@ tilt up                   # build + deploy + live reload
 | D8 | PDFium (`pypdfium2`) ดึงข้อความ PDF | ทดสอบกับ PDF จริงจาก LibreOffice 6 font ไทย: pdfminer อ่านไทยเพี้ยน (cid/ตัวผิด) ทั้งที่ไฟล์ถูกต้อง ทำให้แจ้ง error ผิดกับ resume ที่ดี; PDFium อ่านตัวอักษรถูก 56/60 บรรทัด | pdfminer/pdfplumber (ไทยเพี้ยน), PyMuPDF (AGPL ไม่เข้ากับ MIT), poppler (GPL) |
 | D9 | ตัดสินข้อความซ่อนด้วย contrast กับพื้นหลังที่ render จริง | กฎ "สีขาว = ซ่อน" แจ้งเตือนผิดกับ resume ที่มี sidebar สีเข้ม | ตรวจเฉพาะสีของตัวอักษร |
 | D10 | ตรวจขอบคำไทยด้วยการตัดคำ `longest` ซ้ำอีกชั้น | `newmm` (ค่าเริ่มต้นของ PyThaiNLP) ตัด "จัดการบัญชีผู้ใช้" เป็น "จัด\|การบัญชี" ทำให้ได้ skill ผิด; วัดบน 19 ประโยคบวก + 5 ประโยคลบ: `longest` ไม่ทิ้ง true positive และตัด false positive ได้ | เชื่อ `newmm` อย่างเดียว |
+| D11 | Operator mode: ผู้ใช้คนเดียวตรวจ resume ให้ลูกค้า แล้วคิดเงินตามต้นทุนจริงรายงาน | ตรงกับการใช้งานจริง ไม่ต้องเปิดระบบออกนอกเครื่อง | ระบบหลายผู้ใช้ (ต้องมี auth, แยกข้อมูล, เปิด network) |
+| D12 | gateway ฟังบน **unix socket** (สิทธิ์ 0600) ไม่ใช่ TCP | ไม่มี port ให้โปรแกรมอื่นหรือเครื่องอื่นเชื่อมต่อ มีแค่ผู้ใช้เจ้าของไฟล์ | TCP บน 127.0.0.1 (process ไหนในเครื่องก็ต่อได้) |
+| D13 | key อยู่บน tmpfs เฉพาะช่วง `atsctl start` และลบทิ้งทันทีเมื่อ gateway โหลดเสร็จ | key ไม่ค้างบน disk แม้แต่ใน RAM disk ระหว่างรัน; stop แล้วไม่เหลือร่องรอย | key file ค้างตลอดเวลาที่รัน |
+| D14 | Cost ledger เป็น SQLite + Alembic ในเฟส 2, ย้ายไป Postgres ในเฟส 4 | ใช้ได้ทันทีโดยไม่ต้องมี infra; migration ทำให้ย้ายฐานข้อมูลได้ | Postgres ตั้งแต่แรก (ต้องรัน container ก่อนใช้) |
+| D15 | เงินเป็น `Decimal` ทั้งหมด, ราคาเก็บเป็น config พร้อมแหล่งที่มาและวันที่, คิดตาม model ที่ตอบจริง | คิดเงินลูกค้าต้องตรวจย้อนได้และไม่มีเศษปัดเพี้ยน | float, ราคา hard-code |
+| D16 | ไม่ลบข้อมูลลูกค้าอัตโนมัติ — ลบด้วยคำสั่งเท่านั้น | ผู้ใช้ต้องการเก็บไว้และจัดการเอง | retention job อัตโนมัติ |
+
+---
+
+## 11. เฟส 2: รายละเอียดการออกแบบ
+
+### 11.1 การใช้งานแบบ operator
+
+ผู้ใช้คนเดียว (เจ้าของเครื่อง) ตรวจ resume ที่คนอื่นนำมาให้ แล้วคิดเงินตามต้นทุน API จริงของงานนั้น
+
+```bash
+atsctl start                                        # เปิดระบบ (โหลด key, เปิด gateway)
+ats check resume.pdf --jd job.txt --client "น้องเอ"  # แสดงราคาประมาณการ → ยืนยัน → ตรวจ
+ats costs --client "น้องเอ"                          # ต้นทุนแยกรายงาน + รวม
+ats costs --month 2026-12 --fx 36.20 --markup 50% --csv > bill.csv
+ats forget --client "น้องเอ"                         # ลบข้อมูลของลูกค้าคนนี้ (ทำเอง ไม่มีลบอัตโนมัติ)
+atsctl stop                                         # ปิดระบบ คืนทรัพยากร ไม่เหลือ key
+```
+
+### 11.2 `atsctl` — start / stop ทั้งโปรเจกต์
+
+| คำสั่ง | สิ่งที่ทำ |
+| --- | --- |
+| `start` | 1) ตรวจ preflight: key มีใน keyring, `$XDG_RUNTIME_DIR` เป็น tmpfs, DB migrate ล่าสุด, ไม่มี gateway ค้าง · 2) เขียน key ลงไฟล์ใน `$XDG_RUNTIME_DIR/personal-ats/` (dir 0700, file 0400) · 3) เปิด gateway แบบ background พร้อม pid file · 4) รอ health check ผ่าน unix socket (timeout 15 s) · 5) **ลบไฟล์ key ทันที** (gateway ถือ key ไว้ใน memory เท่านั้น) |
+| `stop` | SIGTERM → รองาน in-flight จบ (สูงสุด 30 s) → SIGKILL ถ้าจำเป็น · ลบ pid, socket และไฟล์ key ที่อาจค้าง · แสดงยอดเงินวันนี้ |
+| `status` | running/stopped, pid, uptime, health, ยอดเงินวันนี้เทียบงบ $2, เวอร์ชัน |
+| `restart` | `stop` แล้ว `start` |
+| `logs` | แสดง log ของ gateway (ผ่าน `SecretRedactingFilter` แล้ว ไม่มีเนื้อหา resume) |
+
+- ทุกคำสั่ง **idempotent**: `start` ตอนรันอยู่แล้ว หรือ `stop` ตอนหยุดอยู่แล้ว ไม่ error และไม่ทำซ้ำ
+- ถ้า gateway crash จะไม่ restart เอง เพราะไม่มี key แล้ว (fail closed) ผู้ใช้สั่ง `atsctl start` ใหม่
+- `ats check` ยังใช้งานส่วนที่ไม่ใช้ AI ได้แม้ระบบหยุดอยู่ ส่วนที่ต้องใช้ AI จะแจ้งให้รัน `atsctl start`
+- **เฟส 4 (k3d):** คำสั่งเดิม แต่ `start` = `k3d cluster start` + สร้าง Secret จาก keyring + รอ pod พร้อม และ `stop` = **ลบ Secret ก่อน** (key ไม่ค้างใน etcd ระหว่างหยุด) แล้ว `k3d cluster stop` โดยข้อมูลใน volume ยังอยู่
+
+### 11.3 Cost ledger
+
+**ตารางราคา** `ats_core/billing/pricing.toml`: ราคาต่อล้าน token แยก input / output / cache write / cache read ต่อ model พร้อม `source` (URL หน้าราคา) และ `as_of` (วันที่ตรวจ) — ทุกแถวของ `llm_calls` เก็บ `pricing_version` ที่ใช้คำนวณ
+
+**ต้นทุนต่อ call** = Σ (token แต่ละประเภท × ราคาประเภทนั้น) ของ **model ที่ตอบจริง** (`response.model` — กรณี fallback อาจไม่ใช่ model ที่ขอ) · thinking token นับเป็น output · call ที่ retry หรือถูกปฏิเสธก็นับ เพราะเสียเงินจริง
+
+**Schema (SQLite + Alembic, ย้ายไป Postgres ได้ในเฟส 4):**
+
+```
+clients    (id, nickname, created_at, forgotten_at)
+analyses   (id, client_id, created_at, resume_sha256, jd_sha256, status, prompt_versions, cost_usd)
+llm_calls  (id, analysis_id, client_id, task, requested_model, model, effort,
+            input_tokens, output_tokens, cache_write_tokens, cache_read_tokens,
+            cost_usd, pricing_version, latency_ms, stop_reason, request_id, attempt, created_at)
+invoices   (id, client_id, period, cost_usd, fx_rate, markup_pct, total_thb, created_at)  ← snapshot ไม่เปลี่ยนย้อนหลัง
+```
+
+- ชื่อลูกค้าอยู่ใน `clients.nickname` ที่เดียว ตารางอื่นใช้ `client_id`
+- `ats forget` ลบ nickname, ไฟล์ และผลวิเคราะห์ แต่เก็บแถวตัวเลขใน `llm_calls`/`invoices` ไว้แบบไม่ระบุตัวตนเพื่อบัญชีของผู้ใช้
+
+**ประมาณราคาก่อนรัน:** input นับด้วย `count_tokens` (แม่น, ไม่เสียเงิน) + output ใช้ค่า p75 ของงานประเภทเดียวกันในอดีต (ก่อนมีประวัติใช้ค่าเริ่มต้นที่ระวังไว้สูง) → แสดงเป็นช่วง และต้องไม่เกินงบที่เหลือของวัน
+
+**งบรายวัน:** $2 ต่อวันตามเวลา Asia/Bangkok · ถ้า ยอดวันนี้ + ประมาณการ > งบ → ไม่เริ่มงาน · ระหว่างงาน gateway ตรวจทุก call
+
+**กระทบยอด:** `ats costs reconcile --month` เทียบยอดของเรากับยอดจาก Anthropic Console (กรอกเอง) ถ้าต่างเกิน 2% แจ้งเตือน เพื่อไม่ให้คิดเงินลูกค้าเกินหรือขาด
+
+**Data science:** `ats costs export --parquet` → วิเคราะห์ด้วย DuckDB/notebook: เงินต่องาน, cache hit rate, latency, และ (เฟส 3) ความแม่นยำต่อเงินหนึ่งดอลลาร์เมื่อเปลี่ยน prompt/effort
+
+### 11.4 ลำดับ PR ของเฟส 2
+
+| # | PR | ต้องใช้ key จริงไหม |
+| --- | --- | --- |
+| 2.1 | ตารางราคา + ตัวคำนวณต้นทุน (Decimal) + ledger schema + งบรายวัน | ไม่ |
+| 2.2 | `llm-gateway`: unix socket, โหลด key จากไฟล์, PII guard แบบ fail closed, Anthropic wrapper (ทดสอบด้วย client ปลอม), บันทึกต้นทุนทุก call | ไม่ |
+| 2.3 | `atsctl start/stop/status/restart/logs` | ไม่ (ทดสอบด้วย key ปลอม) |
+| 2.4 | งานของ Claude: แตก JD, จัดโครง resume, judge + ตรวจหลักฐาน + รวมคะแนน | ไม่ (client ปลอม) |
+| 2.5 | `--client`, ประมาณราคา + ยืนยัน, `ats costs`, `ats forget`, export | ไม่ |
+| 2.6 | security checklist (§9) + smoke test ครั้งแรกกับ key จริง | **ใช่** — ผู้ใช้สร้าง key และเก็บลง keyring เอง |
