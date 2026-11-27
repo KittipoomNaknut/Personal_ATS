@@ -9,6 +9,7 @@ dependencies = [
     "ats-core",
     "fastapi>=0.165.0",
     "uvicorn>=0.54.0",
+    "pydantic>=2.14",
 ]
 
 [project.scripts]
