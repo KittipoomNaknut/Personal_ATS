@@ -219,11 +219,19 @@ JD ─────────────────────────�
 - ระบุ knockout criteria (เช่น "ต้องมีใบอนุญาต…", "ภาษาอังกฤษ TOEIC ≥ 750")
 - cache ผลตาม hash ของ JD (JD เดียวกันใช้กับหลาย resume)
 
-### 3.6 Skill normalization (bilingual)  
+### 3.6 Skill normalization (bilingual)
 
-- Taxonomy หลัก: ESCO skills (มีหลายภาษา) + ไฟล์ alias ของเรา `data/taxonomy/aliases.yaml` สำหรับคำไทยและคำย่อ เช่น `k8s → kubernetes`, `การเรียนรู้ของเครื่อง → machine_learning`
-- ขั้นตอน: exact/alias lookup → ถ้าไม่เจอ ใช้ bge-m3 หา canonical skill ที่ใกล้สุด → ถ้าความมั่นใจต่ำ ให้ Claude ตัดสิน
-- ตัดคำไทยด้วย PyThaiNLP (`newmm`) ก่อนทำ lexical match
+- คลังคำ `ats_core/taxonomy/skills.toml` (เริ่มต้น ~100 skill ด้านเทคโนโลยี ข้อมูล ธุรกิจ soft skill และภาษา) — แต่ละ skill มีชื่อเรียกภาษาอังกฤษ ภาษาไทย และคำที่ต้องตรงตัวพิมพ์ (`Go`, `React`, `Excel`, `R`) เพราะตัวพิมพ์เล็กเป็นคำทั่วไป ("go to market", "react to", "excel at"); ESCO ใช้ขยายคลังคำภายหลัง
+- ตอนโหลดตรวจว่า id ไม่ซ้ำ และไม่มีชื่อเรียกที่ชี้ไปสอง skill
+- อังกฤษ: regex ที่เข้าใจขอบคำของ tech term (`Java` ≠ `JavaScript`, `C` ≠ `C++`/`C#`/`C-level`, `main.go` ไม่ใช่ Go, ช่องว่าง = ขีด)
+- ไทย: ตัดคำด้วย PyThaiNLP (`newmm`) โดยใส่ชื่อเรียกไทยในพจนานุกรม แล้ว**ตรวจซ้ำว่าขอบของคำตรงกับการตัดคำอีกแบบ (`longest`)** เพื่อกันกรณีคำไปขโมยตัวอักษรของคำข้างเคียง ("จัดการบัญชีผู้ใช้" ≠ การบัญชี)
+
+### 3.6b Keyword match (ATS-filter view, ไม่ใช้ Claude)
+
+- แบ่ง JD ตามหัวข้อ: Requirements/คุณสมบัติ → required, Nice to have/จะพิจารณาเป็นพิเศษ → preferred, Benefits/สวัสดิการ/About us → ไม่นับ; คำบอกใบ้ระดับประโยค ("is a plus", "หากมี") ทำให้เป็น preferred เฉพาะประโยคนั้น
+- skill ที่ required ที่ใดที่หนึ่ง = required
+- รายงาน: coverage แยก required/preferred, skill ที่ขาด, skill ที่เจอแต่**ใช้คำพ้อง** (JD เขียน "K8s" แต่ resume เขียน "Kubernetes" → แนะนำให้ใส่คำตาม JD เพราะ ATS บางระบบเทียบคำตรงตัว), skill ที่มีใน resume แต่ JD ไม่ถาม
+- เฟส 2 จะใช้ Claude แตก requirement ได้ละเอียดกว่า (ปีประสบการณ์, วุฒิ, knockout) ส่วนนี้ยังคงเป็นมุมมองของ ATS ที่กรองด้วย keyword
 
 ### 3.7 Match engine (hybrid, ราย requirement)  
 
@@ -400,3 +408,4 @@ tilt up                   # build + deploy + live reload
 | D7 | k3d + egress proxy แทน Cilium | ติดตั้งง่ายบนเครื่องเดียว แต่ยังกรอง FQDN ได้ | Cilium FQDN policy (เรียนรู้เยอะกว่า) |
 | D8 | PDFium (`pypdfium2`) ดึงข้อความ PDF | ทดสอบกับ PDF จริงจาก LibreOffice 6 font ไทย: pdfminer อ่านไทยเพี้ยน (cid/ตัวผิด) ทั้งที่ไฟล์ถูกต้อง ทำให้แจ้ง error ผิดกับ resume ที่ดี; PDFium อ่านตัวอักษรถูก 56/60 บรรทัด | pdfminer/pdfplumber (ไทยเพี้ยน), PyMuPDF (AGPL ไม่เข้ากับ MIT), poppler (GPL) |
 | D9 | ตัดสินข้อความซ่อนด้วย contrast กับพื้นหลังที่ render จริง | กฎ "สีขาว = ซ่อน" แจ้งเตือนผิดกับ resume ที่มี sidebar สีเข้ม | ตรวจเฉพาะสีของตัวอักษร |
+| D10 | ตรวจขอบคำไทยด้วยการตัดคำ `longest` ซ้ำอีกชั้น | `newmm` (ค่าเริ่มต้นของ PyThaiNLP) ตัด "จัดการบัญชีผู้ใช้" เป็น "จัด\|การบัญชี" ทำให้ได้ skill ผิด; วัดบน 19 ประโยคบวก + 5 ประโยคลบ: `longest` ไม่ทิ้ง true positive และตัด false positive ได้ | เชื่อ `newmm` อย่างเดียว |
