@@ -347,6 +347,11 @@ class Ledger:
         return analysis_id
 
     @_locked
+    def analysis_exists(self, analysis_id: str) -> bool:
+        row = self._conn.execute("SELECT 1 FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
+        return row is not None
+
+    @_locked
     def finish_analysis(self, analysis_id: str, status: str = "done") -> None:
         try:
             with self._transaction():
