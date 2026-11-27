@@ -164,3 +164,19 @@ def test_minimal_table() -> None:
 def test_invalid_tables_are_rejected(body: str, header: str | None, message: str) -> None:
     with pytest.raises(PricingError, match=message):
         table(body, header) if header is not None else table(body)
+
+
+@pytest.mark.parametrize(
+    ("category", "output_tokens", "billed"),
+    [
+        ("bio", 0, True),
+        ("frontier_llm", 0, True),
+        ("reasoning_extraction", 0, True),
+        ("cyber", 0, False),
+        ("general_harms", 0, False),
+        (None, 0, False),
+        ("cyber", 12, True),  # mid-stream: input and streamed output are billed
+    ],
+)
+def test_refusal_billing_rules(category: str | None, output_tokens: int, billed: bool) -> None:
+    assert TABLE.is_refusal_billed(category, output_tokens=output_tokens) is billed

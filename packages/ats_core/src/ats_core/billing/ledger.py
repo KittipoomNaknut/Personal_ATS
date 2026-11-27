@@ -10,17 +10,19 @@ Schema changes are numbered migrations tracked with ``PRAGMA user_version``.
 
 from __future__ import annotations
 
+import functools
 import os
 import sqlite3
 import stat
+import threading
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Final
+from typing import Concatenate, Final
 from zoneinfo import ZoneInfo
 
 from ats_core.billing.pricing import CostBreakdown, Usage
@@ -92,6 +94,14 @@ _MIGRATIONS: Final[tuple[str, ...]] = (
         created_at TEXT NOT NULL
     );
     """,
+    # 2: one row per billable attempt (server-side fallback can run two models in
+    # one call); declined attempts that are not billed are kept with cost 0.
+    """
+    ALTER TABLE llm_calls ADD COLUMN iteration_type TEXT NOT NULL DEFAULT 'message';
+    ALTER TABLE llm_calls ADD COLUMN billed INTEGER NOT NULL DEFAULT 1 CHECK (billed IN (0, 1));
+    ALTER TABLE llm_calls ADD COLUMN refusal_category TEXT;
+    ALTER TABLE llm_calls ADD COLUMN note TEXT;
+    """,
 )
 
 
@@ -120,6 +130,15 @@ class CallRecord:
     stop_reason: str | None = None
     request_id: str | None = None
     attempt: int = 1
+    iteration_type: str = "message"
+    billed: bool = True
+    """False for a declined attempt the API does not charge (cost is then 0)."""
+    refusal_category: str | None = None
+    note: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.billed and self.cost.total != 0:
+            raise LedgerError("an unbilled attempt must have zero cost")
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +160,19 @@ class Invoice:
     fx_rate: Decimal
     markup_pct: Decimal
     total_thb: Decimal
+
+
+def _locked[**P, R](
+    method: Callable[Concatenate[Ledger, P], R],
+) -> Callable[Concatenate[Ledger, P], R]:
+    """Serialise access: the connection is shared by the gateway's worker threads."""
+
+    @functools.wraps(method)
+    def wrapper(self: Ledger, /, *args: P.args, **kwargs: P.kwargs) -> R:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
 
 
 def _now() -> datetime:
@@ -167,7 +199,10 @@ class Ledger:
         self.path = Path(path)
         if str(self.path) != ":memory:":
             self._prepare_file()
-        self._conn = sqlite3.connect(str(self.path), isolation_level=None)
+        self._lock = threading.RLock()
+        # Used from several threads (FastAPI runs endpoints in a pool); every
+        # public method holds self._lock, so access is serialised.
+        self._conn = sqlite3.connect(str(self.path), isolation_level=None, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         if str(self.path) != ":memory:":
@@ -199,9 +234,11 @@ class Ledger:
                 self._conn.execute(f"PRAGMA user_version = {number}")
 
     @property
+    @_locked
     def schema_version(self) -> int:
         return int(self._conn.execute("PRAGMA user_version").fetchone()[0])
 
+    @_locked
     def close(self) -> None:
         self._conn.close()
 
@@ -231,6 +268,7 @@ class Ledger:
             forgotten=row["forgotten_at"] is not None,
         )
 
+    @_locked
     def add_client(self, nickname: str, *, now: datetime | None = None) -> Client:
         name = " ".join(nickname.split())
         if not name:
@@ -247,26 +285,31 @@ class Ledger:
             raise LedgerError(f"client {name!r} already exists") from exc
         return self.get_client(client_id)
 
+    @_locked
     def get_client(self, client_id: str) -> Client:
         row = self._conn.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
         if row is None:
             raise LedgerError(f"unknown client {client_id}")
         return self._client(row)
 
+    @_locked
     def find_client(self, nickname: str) -> Client | None:
         row = self._conn.execute(
             "SELECT * FROM clients WHERE nickname_key = ?", (_key(nickname),)
         ).fetchone()
         return self._client(row) if row else None
 
+    @_locked
     def client_for(self, nickname: str) -> Client:
         """The client with this nickname, created if needed."""
         return self.find_client(nickname) or self.add_client(nickname)
 
+    @_locked
     def clients(self) -> list[Client]:
         rows = self._conn.execute("SELECT * FROM clients ORDER BY created_at").fetchall()
         return [self._client(row) for row in rows]
 
+    @_locked
     def forget_client(self, client_id: str, *, now: datetime | None = None) -> None:
         """Remove the client's name and document fingerprints; keep anonymous cost rows."""
         self.get_client(client_id)
@@ -283,6 +326,7 @@ class Ledger:
 
     # ── Analyses and calls ──────────────────────────────────────────────
 
+    @_locked
     def start_analysis(
         self,
         *,
@@ -302,6 +346,7 @@ class Ledger:
             )
         return analysis_id
 
+    @_locked
     def finish_analysis(self, analysis_id: str, status: str = "done") -> None:
         try:
             with self._transaction():
@@ -313,6 +358,7 @@ class Ledger:
         if cursor.rowcount == 0:
             raise LedgerError(f"unknown analysis {analysis_id}")
 
+    @_locked
     def record_call(self, record: CallRecord, *, now: datetime | None = None) -> int:
         if record.attempt < 1:
             raise LedgerError("attempt starts at 1")
@@ -324,8 +370,8 @@ class Ledger:
                     analysis_id, client_id, task, requested_model, model, effort,
                     input_tokens, output_tokens, cache_write_5m_tokens, cache_write_1h_tokens,
                     cache_read_tokens, cost_usd, pricing_version, latency_ms, stop_reason,
-                    request_id, attempt, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    request_id, attempt, created_at, iteration_type, billed, refusal_category, note
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.analysis_id,
@@ -346,6 +392,10 @@ class Ledger:
                     record.request_id,
                     record.attempt,
                     _iso(now or _now()),
+                    record.iteration_type,
+                    int(record.billed),
+                    record.refusal_category,
+                    record.note,
                 ),
             )
         return int(cursor.lastrowid or 0)
@@ -355,18 +405,22 @@ class Ledger:
     def _sum(self, sql: str, params: Sequence[object]) -> Decimal:
         return sum((Decimal(row[0]) for row in self._conn.execute(sql, params)), start=Decimal(0))
 
+    @_locked
     def spent_on(self, day: date, *, tz: ZoneInfo = BILLING_TZ) -> Decimal:
         start, end = _day_bounds(day, tz)
         return self._sum(
             "SELECT cost_usd FROM llm_calls WHERE created_at >= ? AND created_at < ?", (start, end)
         )
 
+    @_locked
     def spent_today(self, *, now: datetime | None = None, tz: ZoneInfo = BILLING_TZ) -> Decimal:
         return self.spent_on((now or _now()).astimezone(tz).date(), tz=tz)
 
+    @_locked
     def analysis_cost(self, analysis_id: str) -> Decimal:
         return self._sum("SELECT cost_usd FROM llm_calls WHERE analysis_id = ?", (analysis_id,))
 
+    @_locked
     def costs_by_client(
         self, start: date, end: date, *, tz: ZoneInfo = BILLING_TZ
     ) -> list[ClientCost]:
@@ -403,6 +457,7 @@ class Ledger:
 
     # ── Invoices ────────────────────────────────────────────────────────
 
+    @_locked
     def create_invoice(
         self,
         client_id: str,
@@ -441,6 +496,7 @@ class Ledger:
             )
         return invoice
 
+    @_locked
     def invoices(self, client_id: str) -> list[Invoice]:
         rows = self._conn.execute(
             "SELECT * FROM invoices WHERE client_id = ? ORDER BY created_at", (client_id,)

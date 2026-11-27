@@ -5,19 +5,21 @@ description = "Personal ATS resume checker (Thai + English) powered by Claude, r
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.12,<3.13"
-dependencies = ["ats-core"]
+dependencies = ["ats-core", "ats-gateway"]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/*", "services/*"]
 
 [tool.uv.sources]
 ats-core = { workspace = true }
+ats-gateway = { workspace = true }
 
 [dependency-groups]
 dev = [
+  "httpx>=0.28",
   "mypy>=1.13",
   "pillow>=11",
   "pytest>=8.3",
@@ -52,8 +54,8 @@ select = [
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["ats_core"]
-mypy_path = "packages/ats_core/src"
+packages = ["ats_core", "ats_gateway"]
+mypy_path = "packages/ats_core/src:services/llm-gateway/src"
 
 # pypdfium2 ships no type information (no py.typed); treat it as Any.
 [[tool.mypy.overrides]]
@@ -62,13 +64,13 @@ ignore_missing_imports = true
 
 # ── Pytest / coverage ───────────────────────────────────────────────────
 [tool.pytest.ini_options]
-testpaths = ["packages"]
-pythonpath = ["packages/ats_core/tests"]
+testpaths = ["packages", "services"]
+pythonpath = ["packages/ats_core/tests", "services/llm-gateway/tests"]
 addopts = "-ra --strict-markers --strict-config --cov --cov-report=term-missing"
 xfail_strict = true
 
 [tool.coverage.run]
-source = ["ats_core"]
+source = ["ats_core", "ats_gateway"]
 branch = true
 
 [tool.coverage.report]

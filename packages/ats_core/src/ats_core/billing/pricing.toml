@@ -12,6 +12,12 @@ source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
 currency = "USD"
 
 # inference_geo = "us" multiplies every token category (Claude 4.6 and later).
+# Refusals that arrive before any output are billed only in these categories
+# ("may change" per https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback.md).
+# A mid-stream refusal always bills the input and the output already streamed.
+[refusals]
+billed_before_output = ["bio", "frontier_llm", "reasoning_extraction"]
+
 [geo_multiplier]
 global = "1"
 us = "1.1"
