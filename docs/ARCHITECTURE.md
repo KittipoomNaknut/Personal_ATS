@@ -412,7 +412,7 @@ tilt up                   # build + deploy + live reload
 | D11 | Operator mode: ผู้ใช้คนเดียวตรวจ resume ให้ลูกค้า แล้วคิดเงินตามต้นทุนจริงรายงาน | ตรงกับการใช้งานจริง ไม่ต้องเปิดระบบออกนอกเครื่อง | ระบบหลายผู้ใช้ (ต้องมี auth, แยกข้อมูล, เปิด network) |
 | D12 | gateway ฟังบน **unix socket** (สิทธิ์ 0600) ไม่ใช่ TCP | ไม่มี port ให้โปรแกรมอื่นหรือเครื่องอื่นเชื่อมต่อ มีแค่ผู้ใช้เจ้าของไฟล์ | TCP บน 127.0.0.1 (process ไหนในเครื่องก็ต่อได้) |
 | D13 | key อยู่บน tmpfs เฉพาะช่วง `atsctl start` และลบทิ้งทันทีเมื่อ gateway โหลดเสร็จ | key ไม่ค้างบน disk แม้แต่ใน RAM disk ระหว่างรัน; stop แล้วไม่เหลือร่องรอย | key file ค้างตลอดเวลาที่รัน |
-| D14 | Cost ledger เป็น SQLite + Alembic ในเฟส 2, ย้ายไป Postgres ในเฟส 4 | ใช้ได้ทันทีโดยไม่ต้องมี infra; migration ทำให้ย้ายฐานข้อมูลได้ | Postgres ตั้งแต่แรก (ต้องรัน container ก่อนใช้) |
+| D14 | Cost ledger เป็น SQLite (`sqlite3` ของ Python) + migration แบบมีเลขเวอร์ชันผ่าน `PRAGMA user_version` ในเฟส 2, ย้ายไป Postgres ในเฟส 4 | ใช้ได้ทันที ไม่มี dependency เพิ่ม ตรวจสอบง่าย; ไฟล์สิทธิ์ 0600; เงินเก็บเป็น TEXT แล้วรวมด้วย Decimal (SUM ของ SQLite ผ่าน float) | Alembic + SQLAlchemy (หนักเกินสำหรับ SQLite ในเครื่อง — พิจารณาใหม่ตอนย้าย Postgres) |
 | D15 | เงินเป็น `Decimal` ทั้งหมด, ราคาเก็บเป็น config พร้อมแหล่งที่มาและวันที่, คิดตาม model ที่ตอบจริง | คิดเงินลูกค้าต้องตรวจย้อนได้และไม่มีเศษปัดเพี้ยน | float, ราคา hard-code |
 | D16 | ไม่ลบข้อมูลลูกค้าอัตโนมัติ — ลบด้วยคำสั่งเท่านั้น | ผู้ใช้ต้องการเก็บไว้และจัดการเอง | retention job อัตโนมัติ |
 
@@ -454,7 +454,7 @@ atsctl stop                                         # ปิดระบบ ค�
 
 **ต้นทุนต่อ call** = Σ (token แต่ละประเภท × ราคาประเภทนั้น) ของ **model ที่ตอบจริง** (`response.model` — กรณี fallback อาจไม่ใช่ model ที่ขอ) · thinking token นับเป็น output · call ที่ retry หรือถูกปฏิเสธก็นับ เพราะเสียเงินจริง
 
-**Schema (SQLite + Alembic, ย้ายไป Postgres ได้ในเฟส 4):**
+**Schema (SQLite + numbered migrations, ย้ายไป Postgres ได้ในเฟส 4):**
 
 ```
 clients    (id, nickname, created_at, forgotten_at)
