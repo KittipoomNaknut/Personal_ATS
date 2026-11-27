@@ -1,0 +1,45 @@
+# ── Secrets: never commit ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+kubeconfig*
+*.kubeconfig
+age.key
+*.age
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ── Local data (resumes contain personal information) ───────────────────
+data/uploads/
+data/private/
+eval/private/
+*.local.*
+
+# ── Models & caches ──────────────────────────────────────────────────────
+models/
+.cache/
+
+# ── Tooling ──────────────────────────────────────────────────────────────
+.tilt/
+.idea/
+.vscode/
+*.swp
+.DS_Store
