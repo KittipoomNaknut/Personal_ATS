@@ -422,6 +422,16 @@ class Ledger:
         return self.spent_on((now or _now()).astimezone(tz).date(), tz=tz)
 
     @_locked
+    def task_costs(self, task: str, *, limit: int = 200) -> list[Decimal]:
+        """Costs of the most recent billed calls of ``task`` (newest first), for estimates."""
+        rows = self._conn.execute(
+            "SELECT cost_usd FROM llm_calls WHERE task = ? AND billed = 1 "
+            "ORDER BY created_at DESC, id DESC LIMIT ?",
+            (task, limit),
+        ).fetchall()
+        return [Decimal(row[0]) for row in rows]
+
+    @_locked
     def analysis_cost(self, analysis_id: str) -> Decimal:
         return self._sum("SELECT cost_usd FROM llm_calls WHERE analysis_id = ?", (analysis_id,))
 

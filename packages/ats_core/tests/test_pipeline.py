@@ -204,7 +204,9 @@ def test_full_analysis(ledger: Ledger) -> None:
     assert analysis.total_years == 8.5  # 31 + 71 months, computed in code
     python = analysis.results[0]
     assert python.years == 5.9  # only the job whose lines mention Python: Jan 2021 - Nov 2026
-    assert python.rationale == "Somchai Example uses Python"  # placeholder restored locally
+    assert (
+        python.rationale == "[NAME_1] uses Python"
+    )  # kept redacted: reports carry no personal data
     assert python.evidence_text == ("- Built FastAPI services in Python for payments.",)
     assert analysis.score.failed_knockouts == ("R3",)
     expected = score_match(
@@ -338,3 +340,62 @@ def test_cost_matches_ledger_exactly(ledger: Ledger) -> None:
     analysis = run(FakeGateway(ledger), ledger)
     assert analysis.cost_usd == ledger.analysis_cost(analysis.analysis_id)
     assert analysis.cost_usd == Decimal("0.09")
+
+
+# ── Cost estimate and confirmation ───────────────────────────────────────
+
+
+def test_estimate_is_offered_after_the_cheap_steps(ledger: Ledger) -> None:
+    gateway = FakeGateway(ledger)
+    seen: list[Any] = []
+
+    def accept(estimate: Any) -> bool:
+        seen.append(estimate)
+        return True
+
+    run(gateway, ledger, confirm=accept)
+    (estimate,) = seen
+    assert estimate.spent == CALL_COST.total * 2  # parse_jd + structure
+    assert (estimate.calls_min, estimate.calls_max) == (7, 10)  # 3 required x 2 + 1, +3 tiebreaks
+    assert estimate.basis == "token estimate"
+    assert 0 < estimate.judge_low < estimate.judge_high
+    assert estimate.total_high == estimate.spent + estimate.judge_high
+
+
+def test_declining_cancels_before_judging(ledger: Ledger) -> None:
+    from ats_core.pipeline import AnalysisCancelled
+
+    gateway = FakeGateway(ledger)
+    with pytest.raises(AnalysisCancelled) as info:
+        run(gateway, ledger, confirm=lambda _estimate: False)
+    assert info.value.cost_usd == CALL_COST.total * 2
+    assert not [c for c in gateway.calls if c[0] == "judge"]
+    (status,) = ledger._conn.execute("SELECT status FROM analyses").fetchone()
+    assert status == "cancelled"
+
+
+def test_estimate_uses_history_when_available(ledger: Ledger) -> None:
+    from ats_core.pipeline import estimate_judging
+
+    for cents in range(1, 11):  # ten past judge calls costing 0.01 .. 0.10
+        cost = PRICES.cost("claude-opus-5-5", Usage(output_tokens=500 * cents))
+        ledger.record_call(
+            CallRecord(
+                task="judge.v1",
+                requested_model="m",
+                usage=Usage(output_tokens=500 * cents),
+                cost=cost,
+            )
+        )
+    requirements = run(FakeGateway(ledger), ledger).results
+    estimate = estimate_judging([r.requirement for r in requirements], [], ledger)
+    assert estimate.basis == "history"
+    assert estimate.judge_low == Decimal("0.03") * 7  # 25th percentile x minimum calls
+    assert estimate.judge_high == Decimal("0.09") * 10  # 90th percentile x maximum calls
+
+
+def test_estimate_without_requirements(ledger: Ledger) -> None:
+    from ats_core.pipeline import estimate_judging
+
+    estimate = estimate_judging([], [], ledger, spent=Decimal("0.02"))
+    assert (estimate.calls_min, estimate.judge_high, estimate.total_low) == (0, 0, Decimal("0.02"))
