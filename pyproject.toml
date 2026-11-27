@@ -19,8 +19,10 @@ ats-core = { workspace = true }
 [dependency-groups]
 dev = [
   "mypy>=1.13",
+  "pillow>=11",
   "pytest>=8.3",
   "pytest-cov>=6.0",
+  "reportlab>=5.1.2",
   "ruff==0.17.6",
 ]
 
@@ -53,9 +55,15 @@ strict = true
 packages = ["ats_core"]
 mypy_path = "packages/ats_core/src"
 
+# pypdfium2 ships no type information (no py.typed); treat it as Any.
+[[tool.mypy.overrides]]
+module = ["pypdfium2", "pypdfium2.*"]
+ignore_missing_imports = true
+
 # ── Pytest / coverage ───────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["packages"]
+pythonpath = ["packages/ats_core/tests"]
 addopts = "-ra --strict-markers --strict-config --cov --cov-report=term-missing"
 xfail_strict = true
 
