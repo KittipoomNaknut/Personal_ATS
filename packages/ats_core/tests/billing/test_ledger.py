@@ -11,11 +11,12 @@ from pathlib import Path
 import pytest
 
 from ats_core.billing.budget import DailyBudget
-from ats_core.billing.ledger import CallRecord, Ledger, LedgerError
+from ats_core.billing.ledger import _MIGRATIONS, CallRecord, Ledger, LedgerError
 from ats_core.billing.pricing import Usage, default_price_table
 
 PRICES = default_price_table()
 NOON = datetime(2026, 12, 1, 5, 0, tzinfo=UTC)  # 12:00 in Bangkok
+LATEST = len(_MIGRATIONS)
 
 
 @pytest.fixture
@@ -68,10 +69,10 @@ def test_world_readable_database_is_refused(tmp_path: Path) -> None:
 def test_migrations_are_applied_once(tmp_path: Path) -> None:
     path = tmp_path / "ledger.db"
     with Ledger(path) as first:
-        assert first.schema_version == 1
+        assert first.schema_version == LATEST
         first.add_client("A")
     with Ledger(path) as second:  # reopening must not re-run or wipe anything
-        assert second.schema_version == 1
+        assert second.schema_version == LATEST
         assert [c.nickname for c in second.clients()] == ["A"]
 
 
@@ -87,7 +88,7 @@ def test_newer_schema_is_refused(tmp_path: Path) -> None:
 
 def test_in_memory_ledger() -> None:
     with Ledger(":memory:") as memory:
-        assert memory.schema_version == 1
+        assert memory.schema_version == LATEST
 
 
 # ── Clients ──────────────────────────────────────────────────────────────
@@ -293,3 +294,79 @@ def test_budget_validation(ledger: Ledger) -> None:
         DailyBudget(Decimal(-1))
     with pytest.raises(ValueError, match="must not be negative"):
         DailyBudget().check(ledger, Decimal(-1))
+
+
+def test_v1_database_upgrades_without_losing_data(tmp_path: Path) -> None:
+    path = tmp_path / "ledger.db"
+    path.touch(mode=0o600)
+    conn = sqlite3.connect(path)
+    for statement in filter(str.strip, _MIGRATIONS[0].split(";")):
+        conn.execute(statement)
+    conn.execute("PRAGMA user_version = 1")
+    conn.execute(
+        "INSERT INTO llm_calls (task, requested_model, model, input_tokens, output_tokens, "
+        "cache_write_5m_tokens, cache_write_1h_tokens, cache_read_tokens, cost_usd, "
+        "pricing_version, created_at) VALUES ('judge', 'm', 'm', 1, 1, 0, 0, 0, '0.08', 'v', ?)",
+        (NOON.isoformat(),),
+    )
+    conn.commit()
+    conn.close()
+    with Ledger(path) as upgraded:
+        assert upgraded.schema_version == LATEST
+        assert upgraded.spent_on(date(2026, 12, 1)) == Decimal("0.08")
+        row = upgraded._conn.execute("SELECT iteration_type, billed FROM llm_calls").fetchone()
+        assert tuple(row) == ("message", 1)
+
+
+def test_unbilled_attempt_is_recorded_at_zero_cost(ledger: Ledger) -> None:
+    usage = Usage(input_tokens=5_000)
+    zero = PRICES.cost("claude-opus-5-5", Usage())
+    record = CallRecord(
+        task="judge",
+        requested_model="claude-opus-5-5",
+        usage=usage,
+        cost=zero,
+        billed=False,
+        refusal_category="cyber",
+        iteration_type="message",
+    )
+    ledger.record_call(record, now=NOON)
+    assert ledger.spent_on(date(2026, 12, 1)) == 0
+    row = ledger._conn.execute(
+        "SELECT input_tokens, billed, refusal_category FROM llm_calls"
+    ).fetchone()
+    assert tuple(row) == (5_000, 0, "cyber")  # tokens kept for analysis, not charged
+
+
+def test_unbilled_attempt_must_have_zero_cost() -> None:
+    with pytest.raises(LedgerError, match="zero cost"):
+        CallRecord(
+            task="judge",
+            requested_model="claude-opus-5-5",
+            usage=Usage(input_tokens=1),
+            cost=PRICES.cost("claude-opus-5-5", Usage(input_tokens=1)),
+            billed=False,
+        )
+
+
+def test_ledger_is_safe_across_threads(ledger: Ledger) -> None:
+    # The gateway serves requests from a thread pool that shares one ledger.
+    import threading
+
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        try:
+            for _ in range(25):
+                ledger.record_call(call(), now=NOON)
+                ledger.spent_on(date(2026, 12, 1))
+        except BaseException as exc:  # pragma: no cover - only on failure
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    assert ledger.spent_on(date(2026, 12, 1)) == Decimal("0.08") * 200

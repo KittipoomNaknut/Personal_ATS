@@ -141,12 +141,14 @@ class PriceTable:
         version: str,
         models: dict[str, ModelPrices],
         geo_multipliers: dict[str, Decimal],
+        billed_refusal_categories: frozenset[str] = frozenset(),
     ) -> None:
         if not version:
             raise PricingError("price table needs a version")
         self.version = version
         self._models = models
         self._geo = geo_multipliers
+        self.billed_refusal_categories = billed_refusal_categories
 
     @classmethod
     def from_toml(cls, text: str) -> PriceTable:
@@ -172,7 +174,10 @@ class PriceTable:
             region: _decimal(value, f"geo_multiplier.{region}")
             for region, value in data.get("geo_multiplier", {"global": "1"}).items()
         }
-        return cls(str(data.get("version", "")), models, geo)
+        refusals = frozenset(
+            str(c) for c in data.get("refusals", {}).get("billed_before_output", [])
+        )
+        return cls(str(data.get("version", "")), models, geo, refusals)
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -180,6 +185,10 @@ class PriceTable:
 
     def __contains__(self, model: object) -> bool:
         return model in self._models
+
+    def is_refusal_billed(self, category: str | None, *, output_tokens: int) -> bool:
+        """Whether a declined attempt is charged: always mid-stream, else by category."""
+        return output_tokens > 0 or category in self.billed_refusal_categories
 
     def prices(self, model: str) -> ModelPrices:
         try:
