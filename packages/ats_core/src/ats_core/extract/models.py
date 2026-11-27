@@ -46,6 +46,11 @@ class TextLine:
     hidden_chars: int = 0
     """Characters a human cannot see: white, hidden-formatted or < 2 pt."""
 
+    @property
+    def mostly_hidden(self) -> bool:
+        visible = sum(1 for ch in self.text if not ch.isspace())
+        return visible > 0 and self.hidden_chars * 2 > visible
+
 
 @dataclass(frozen=True, slots=True)
 class PageInfo:
@@ -76,6 +81,14 @@ class ExtractedDocument:
     @property
     def text(self) -> str:
         return "\n".join(line.text for line in self.lines)
+
+    @property
+    def visible_text(self) -> str:
+        """Text a human reader sees: lines that are mostly hidden are left out.
+
+        Used for keyword matching, so hidden keyword stuffing earns no credit.
+        """
+        return "\n".join(line.text for line in self.lines if not line.mostly_hidden)
 
     def lines_of(self, *kinds: BlockKind) -> tuple[TextLine, ...]:
         return tuple(line for line in self.lines if line.kind in kinds)
