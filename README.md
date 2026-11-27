@@ -17,7 +17,31 @@ Runs locally on Kubernetes (k3d). Built security-first: the Claude API key is
 isolated in a single gateway, personal data is redacted before leaving the
 machine, and all other egress is denied.
 
-> **Status:** Phase 0, repository foundation. See the [roadmap](docs/ARCHITECTURE.md#9-roadmap).
+> **Status:** Phase 1, the local core (no AI yet). See the [roadmap](docs/ARCHITECTURE.md#9-roadmap).
+
+## Usage
+
+Everything below runs on your machine; nothing is sent anywhere.
+
+```bash
+uv sync
+uv run ats check resume.pdf --jd job.txt            # Thai report (default)
+uv run ats check resume.pdf --jd job.txt --lang en  # English report
+uv run ats check resume.docx --json                 # machine-readable
+uv run ats check resume.pdf --show-redacted         # text as it would be sent to AI
+```
+
+The job description can be plain text, PDF or DOCX. The report covers:
+
+- **ATS readability:** scanned pages, garbled Thai, hidden text, columns, tables,
+  headers/footers, text boxes, missing sections, Buddhist-era dates.
+- **Keywords:** required and preferred skills from the job description, what is
+  missing, and where the resume uses a synonym instead of the job description's
+  exact term. Hidden text earns no credit.
+- **Privacy:** how many personal details would be removed before any AI call.
+  Values are never printed. Use `--name` to make sure your name is caught.
+
+Exit codes: `0` success, `2` usage error, `3` file unreadable, `4` file cannot be parsed.
 
 ## Documentation
 
