@@ -105,9 +105,15 @@ class SkillMatch:
 
     @property
     def exact_term(self) -> bool:
-        """True if the resume uses one of the job description's own spellings."""
-        wanted = {_fold(term) for term in self.requirement.terms}
-        return any(_fold(m.text) in wanted for m in self.resume_mentions)
+        """True if the resume uses the job description's wording.
+
+        Containment counts in either direction ("communication" vs "communication
+        skills", "การสื่อสาร" vs "ทักษะการสื่อสาร"): a keyword search on the core
+        term finds both. A real synonym ("K8s" vs "Kubernetes") does not count.
+        """
+        wanted = [_fold(term) for term in self.requirement.terms]
+        used = [_fold(m.text) for m in self.resume_mentions]
+        return any(a in b or b in a for a in wanted for b in used)
 
 
 @dataclass(frozen=True, slots=True)

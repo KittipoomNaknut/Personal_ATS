@@ -203,3 +203,18 @@ def test_real_pdf_resume_against_jd(
     report = match_keywords(extract_document(pdf.read_bytes()).text, jd)
     assert {m.requirement.skill.id for m in report.matches if m.found} == found
     assert {m.requirement.skill.id for m in report.missing} == missing
+
+
+@pytest.mark.parametrize(
+    ("resume", "jd", "exact"),
+    [
+        ("communication with stakeholders", "Requirements\n- communication skills", True),
+        ("มีการสื่อสารที่ดี", "คุณสมบัติ\n- มีทักษะการสื่อสาร", True),
+        ("Kubernetes", "Requirements\n- K8s", False),
+        ("ภาษาอังกฤษ", "Requirements\n- English", False),
+    ],
+)
+def test_exact_term_containment(resume: str, jd: str, exact: bool) -> None:
+    (match,) = match_keywords(resume, jd).matches
+    assert match.found
+    assert match.exact_term is exact
