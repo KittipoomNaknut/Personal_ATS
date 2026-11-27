@@ -1,0 +1,81 @@
+# Claude API prices used to bill clients. USD per million tokens.
+#
+# Copied from the official pricing page on the date below. When prices change,
+# add the new values and bump `version`: every recorded call stores the version
+# it was priced with, so past invoices stay reproducible.
+#
+# Batch API and fast-mode cache prices are not published per category, so those
+# requests are rejected by the calculator instead of being guessed.
+
+version = "2026-11-27"
+source = "https://platform.claude.com/docs/en/about-claude/pricing.md"
+currency = "USD"
+
+# inference_geo = "us" multiplies every token category (Claude 4.6 and later).
+[geo_multiplier]
+global = "1"
+us = "1.1"
+
+[[model]]
+id = "claude-opus-5-5"
+name = "Claude Opus 5.5"
+input = "4"
+cache_write_5m = "5"
+cache_write_1h = "8"
+cache_read = "0.20"
+output = "20"
+
+[[model]]
+id = "claude-opus-5"
+name = "Claude Opus 5"
+input = "5"
+cache_write_5m = "6.25"
+cache_write_1h = "10"
+cache_read = "0.50"
+output = "25"
+
+[[model]]
+id = "claude-opus-4-8"
+name = "Claude Opus 4.8"
+input = "5"
+cache_write_5m = "6.25"
+cache_write_1h = "10"
+cache_read = "0.50"
+output = "25"
+
+[[model]]
+id = "claude-sonnet-5-5"
+name = "Claude Sonnet 5.5"
+input = "2"
+cache_write_5m = "2.50"
+cache_write_1h = "4"
+cache_read = "0.10"
+output = "10"
+
+[[model]]
+id = "claude-fable-5-2"
+name = "Claude Fable 5.2"
+input = "8"
+cache_write_5m = "10"
+cache_write_1h = "16"
+cache_read = "0.20"
+output = "40"
+
+# Haiku 5.5 has two tiers: a request whose prompt (all input tokens, including
+# cache reads and writes) exceeds the threshold is billed entirely at the higher tier.
+[[model]]
+id = "claude-haiku-5-5"
+name = "Claude Haiku 5.5"
+input = "0.10"
+cache_write_5m = "0.125"
+cache_write_1h = "0.20"
+cache_read = "0.01"
+output = "0.50"
+
+[model.long_context]
+threshold_tokens = 100000
+input = "0.50"
+cache_write_5m = "0.625"
+cache_write_1h = "1"
+cache_read = "0.05"
+output = "2.50"
