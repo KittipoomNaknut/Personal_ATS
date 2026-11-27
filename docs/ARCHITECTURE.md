@@ -125,10 +125,14 @@ Anthropic Console                OS keyring (GNOME)           k3s (encrypted at 
 - อ่าน key จากไฟล์ครั้งเดียว เก็บในตัวแปร process แล้วส่งให้   `anthropic.Anthropic(api_key=...)` — ไม่เขียนลง env, ไม่ log, ไม่ return ใน response ใดๆ
 - API ภายในเป็นแบบ **task-specific** (`/v1/parse-jd`, `/v1/structure-resume`, `/v1/judge`) ไม่ใช่ proxy ทั่วไป → worker ส่ง prompt อิสระไม่ได้ กำหนด model / system prompt / schema ไว้ฝั่ง gateway
 - ยืนยันตัวผู้เรียกด้วย shared token ภายใน (แยกจาก API key) + NetworkPolicy อนุญาตเฉพาะ worker
-- **PII redaction ก่อนส่ง:** แทนที่ด้วย placeholder แล้วเก็บ mapping ไว้ใน gateway memory ของ request นั้น
-  - อีเมล, เบอร์โทร (ไทย `0[689]\d{8}` / สากล), URL โปรไฟล์ส่วนตัว, เลขบัตรประชาชน 13 หลัก (ตรวจ checksum), ที่อยู่
-  - ชื่อ-นามสกุล: จาก header ของ resume (NER: PyThaiNLP + Presidio สำหรับอังกฤษ)
-  - การจับคู่ skill ไม่ต้องใช้ข้อมูลเหล่านี้ ความแม่นยำจึงไม่ลด
+- **PII redaction ก่อนส่ง** (`ats_core.pii`): แทนที่ด้วย placeholder คงที่ต่อค่า (`[EMAIL_1]`) และเก็บ mapping ไว้ในเครื่องเท่านั้น เพื่อแปลงผลลัพธ์กลับตอนแสดง
+  - **ลบเสมอ:** ชื่อ-นามสกุล (บรรทัดหัว resume, คำนำหน้า นาย/นางสาว/Mr./Dr., ป้าย "ชื่อ:"), อีเมล (รวมแบบ `[at]`), เบอร์โทรไทย/สากลทุกรูปแบบการเว้นวรรค, เลขบัตรประชาชน (checksum หรือมีป้ายกำกับ), ที่อยู่ (ป้าย "ที่อยู่" หรือ marker ถนน/ซอย/ตำบล/รหัสไปรษณีย์), URL โปรไฟล์ส่วนตัว, LINE/Skype ID
+  - **วันเกิด:** ลบวันที่ แต่เก็บอายุโดยประมาณใน placeholder (`[DATE_OF_BIRTH_1 age 31]`) เพราะ JD ไทยมักระบุช่วงอายุ
+  - **ข้อมูลอ่อนไหว:** ลบศาสนาและสถานภาพสมรส (ไม่ใช่เกณฑ์ที่ชอบธรรม)
+  - **เก็บไว้:** จังหวัด/เมือง, เพศ, สัญชาติ, การเกณฑ์ทหาร — อาจเป็นคุณสมบัติของงานและระบุตัวบุคคลไม่ได้
+  - **กัน false positive:** ป้ายต้องอยู่ต้น segment, คำอังกฤษต้องมี word boundary, คำนำหน้าไทยต้องตามด้วยชื่อ + นามสกุล และไม่ใช่คำประสม (นายจ้าง, นางพยาบาล)
+  - **Fail closed:** gateway เรียก `find_residual_pii()` ซ้ำกับข้อความที่ลบแล้ว ถ้ายังเจออีเมล/เบอร์/เลขบัตร/URL โปรไฟล์ → ไม่ส่ง
+  - ใช้ rule-based แทน NER model: ตรวจสอบได้, deterministic, ไม่ต้องโหลดโมเดลใหญ่; ทดสอบทั้ง recall (ต้องลบครบ) และ precision (ต้องไม่ลบเนื้อหางาน)
 - **Budget guard:** นับ token จาก `response.usage` ลง Postgres ถ้าเกิน daily budget → ปฏิเสธ request (HTTP 429) และ circuit breaker เมื่อ error ติดกัน
 - **Audit log:** เก็บ request id, task, token count, latency, model — **ไม่เก็บ** prompt/response เต็ม
 
