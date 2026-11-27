@@ -446,6 +446,11 @@ atsctl stop                                         # ปิดระบบ ค�
 | `restart` | `stop` แล้ว `start` |
 | `logs` | แสดง log ของ gateway (ผ่าน `SecretRedactingFilter` แล้ว ไม่มีเนื้อหา resume) |
 
+- key ใน keyring: `secret-tool store --label='Anthropic personal-ats' service anthropic account personal-ats` (พิมพ์ผ่าน prompt)
+- path: runtime (tmpfs) `$XDG_RUNTIME_DIR/personal-ats/` — socket, pid, ไฟล์ key ชั่วคราว · data `~/.local/share/personal-ats/ledger.db` · log `~/.local/state/personal-ats/gateway.log` (ทุกไฟล์ 0600, ทุกโฟลเดอร์ 0700)
+- `stop` ตรวจ `/proc/<pid>/cmdline` ว่าเป็น gateway ของ socket นี้จริงก่อนส่ง signal (กัน PID ที่ระบบนำไปใช้ซ้ำ) และ SIGKILL ถ้าไม่หยุดใน 30 s
+- `status` คืน exit code 3 เมื่อหยุดอยู่ (แบบ `systemctl status`)
+
 - ทุกคำสั่ง **idempotent**: `start` ตอนรันอยู่แล้ว หรือ `stop` ตอนหยุดอยู่แล้ว ไม่ error และไม่ทำซ้ำ
 - ถ้า gateway crash จะไม่ restart เอง เพราะไม่มี key แล้ว (fail closed) ผู้ใช้สั่ง `atsctl start` ใหม่
 - `ats check` ยังใช้งานส่วนที่ไม่ใช้ AI ได้แม้ระบบหยุดอยู่ ส่วนที่ต้องใช้ AI จะแจ้งให้รัน `atsctl start`

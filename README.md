@@ -43,6 +43,27 @@ The job description can be plain text, PDF or DOCX. The report covers:
 
 Exit codes: `0` success, `2` usage error, `3` file unreadable, `4` file cannot be parsed.
 
+### Starting and stopping the AI gateway
+
+The Claude-powered parts run through a local gateway that holds the API key.
+Store the key once in your OS keyring; it is typed at a prompt, never on the
+command line:
+
+```bash
+secret-tool store --label='Anthropic personal-ats' service anthropic account personal-ats
+```
+
+```bash
+uv run atsctl start     # key -> tmpfs -> gateway memory; the key file is deleted at once
+uv run atsctl status    # running?, uptime, today's spend against the $2.00 daily budget
+uv run atsctl logs -n 50
+uv run atsctl stop      # stops the gateway; no key is left anywhere
+```
+
+The gateway listens only on a private unix socket (mode 0600) under
+`$XDG_RUNTIME_DIR/personal-ats/`, which must be tmpfs. The cost ledger lives in
+`~/.local/share/personal-ats/ledger.db` (mode 0600).
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md) (Thai)

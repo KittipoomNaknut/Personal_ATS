@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 ats-gateway = "ats_gateway.server:main"
+atsctl = "ats_gateway.control:main"
 
 [tool.uv.sources]
 ats-core = { workspace = true }
