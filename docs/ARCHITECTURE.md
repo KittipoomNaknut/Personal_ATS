@@ -415,6 +415,9 @@ tilt up                   # build + deploy + live reload
 | D14 | Cost ledger เป็น SQLite (`sqlite3` ของ Python) + migration แบบมีเลขเวอร์ชันผ่าน `PRAGMA user_version` ในเฟส 2, ย้ายไป Postgres ในเฟส 4 | ใช้ได้ทันที ไม่มี dependency เพิ่ม ตรวจสอบง่าย; ไฟล์สิทธิ์ 0600; เงินเก็บเป็น TEXT แล้วรวมด้วย Decimal (SUM ของ SQLite ผ่าน float) | Alembic + SQLAlchemy (หนักเกินสำหรับ SQLite ในเครื่อง — พิจารณาใหม่ตอนย้าย Postgres) |
 | D15 | เงินเป็น `Decimal` ทั้งหมด, ราคาเก็บเป็น config พร้อมแหล่งที่มาและวันที่, คิดตาม model ที่ตอบจริง | คิดเงินลูกค้าต้องตรวจย้อนได้และไม่มีเศษปัดเพี้ยน | float, ราคา hard-code |
 | D16 | ไม่ลบข้อมูลลูกค้าอัตโนมัติ — ลบด้วยคำสั่งเท่านั้น | ผู้ใช้ต้องการเก็บไว้และจัดการเอง | retention job อัตโนมัติ |
+| D17 | Server-side fallback แบบระบุโมเดลเดียว (`claude-opus-5`) แทน `"default"` | จำนวน attempt (≤ 2) และราคารู้ล่วงหน้า → คำนวณค่าใช้จ่ายสูงสุดก่อนส่งได้ งบรายวันจึงเป็นการรับประกันจริง | `fallbacks: "default"` (โมเดลและจำนวนครั้งไม่แน่นอน) |
+| D18 | คิดเงินราย attempt จาก `usage.iterations` ตามกติกาทางการ: ปฏิเสธก่อน output คิดเงินเฉพาะ category `bio`/`frontier_llm`/`reasoning_extraction`, ปฏิเสธกลางทางคิดเสมอ, ไม่รู้ category → คิดและติดธง | คิดเงินลูกค้าตรงกับที่ Anthropic เรียกเก็บ; รายการ category อยู่ในตารางราคาที่มีเวอร์ชัน | รวม usage ทั้งหมด (คิดเกิน) หรือใช้ top-level usage (คิดขาด) |
+| D19 | gateway bind unix socket เองที่ 0600 แล้วส่ง fd ให้ uvicorn | uvicorn chmod socket ที่สร้างเองเป็น 0666 (พบจาก test) | ให้ uvicorn สร้าง socket |
 
 ---
 
@@ -481,7 +484,7 @@ invoices   (id, client_id, period, cost_usd, fx_rate, markup_pct, total_thb, cre
 | # | PR | ต้องใช้ key จริงไหม |
 | --- | --- | --- |
 | 2.1 | ตารางราคา + ตัวคำนวณต้นทุน (Decimal) + ledger schema + งบรายวัน | ไม่ |
-| 2.2 | `llm-gateway`: unix socket, โหลด key จากไฟล์, PII guard แบบ fail closed, Anthropic wrapper (ทดสอบด้วย client ปลอม), บันทึกต้นทุนทุก call | ไม่ |
+| 2.2 | `llm-gateway`: unix socket 0600, โหลด key จากไฟล์ (ห้าม symlink/สิทธิ์กว้าง), ปฏิเสธ env ที่อันตราย, PII guard แบบ fail closed, งบแบบ worst-case, fallback เดียว, บันทึกเงินราย attempt (ทดสอบด้วย SDK จริงบน mock transport) | ไม่ |
 | 2.3 | `atsctl start/stop/status/restart/logs` | ไม่ (ทดสอบด้วย key ปลอม) |
 | 2.4 | งานของ Claude: แตก JD, จัดโครง resume, judge + ตรวจหลักฐาน + รวมคะแนน | ไม่ (client ปลอม) |
 | 2.5 | `--client`, ประมาณราคา + ยืนยัน, `ats costs`, `ats forget`, export | ไม่ |
