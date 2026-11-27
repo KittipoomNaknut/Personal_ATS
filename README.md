@@ -17,7 +17,7 @@ Runs locally on Kubernetes (k3d). Built security-first: the Claude API key is
 isolated in a single gateway, personal data is redacted before leaving the
 machine, and all other egress is denied.
 
-> **Status:** Phase 1, the local core (no AI yet). See the [roadmap](docs/ARCHITECTURE.md#9-roadmap).
+> **Status:** Phase 2, AI analysis through a local gateway (first live run pending). See the [roadmap](docs/ARCHITECTURE.md#9-roadmap).
 
 ## Usage
 
@@ -59,6 +59,25 @@ uv run atsctl status    # running?, uptime, today's spend against the $2.00 dail
 uv run atsctl logs -n 50
 uv run atsctl stop      # stops the gateway; no key is left anywhere
 ```
+
+### AI analysis and billing clients
+
+With the gateway running, add `--ai` to have Claude judge every requirement of
+the job description. The two cheap steps (reading the job description and the
+resume) run first; then the cost of judging is estimated and you confirm:
+
+```bash
+uv run ats check resume.pdf --jd job.txt --ai --client "น้องเอ"   # asks before judging
+uv run ats check resume.pdf --jd job.txt --ai --yes               # no question (scripts)
+uv run ats costs --month 2026-12 --fx 36.20 --markup 50           # per client, USD and THB
+uv run ats costs --client "น้องเอ" --month 2026-12 --fx 36.20 --invoice   # saves a snapshot
+uv run ats forget --client "น้องเอ"                               # name and fingerprints only
+```
+
+Only redacted text is sent, and reports show evidence and rationales with
+placeholders such as `[NAME_1]`, so a report never contains personal values.
+Years of experience are computed in code; for a skill they count only the jobs
+whose lines name that skill.
 
 The gateway listens only on a private unix socket (mode 0600) under
 `$XDG_RUNTIME_DIR/personal-ats/`, which must be tmpfs. The cost ledger lives in
