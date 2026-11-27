@@ -127,7 +127,12 @@ def running_gateway(private_dir: Path) -> Iterator[tuple[Path, subprocess.Popen[
     write_key(private_dir)
     env = {k: v for k, v in os.environ.items() if not k.startswith("ANTHROPIC_")}
     process = subprocess.Popen(  # noqa: S603 - fixed arguments
-        [sys.executable, "-m", "ats_gateway.server", *args(private_dir, "--unlink-key-file")],
+        [
+            sys.executable,
+            "-m",
+            "ats_gateway.server",
+            *args(private_dir, "--unlink-key-file", "--skip-upstream-check"),
+        ],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

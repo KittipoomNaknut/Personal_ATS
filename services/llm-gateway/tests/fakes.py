@@ -88,6 +88,8 @@ class FakeApi:
     responses: list[httpx2.Response] = field(default_factory=list)
     counted_tokens: int = 5_000
     requests: list[httpx2.Request] = field(default_factory=list)
+    model_info: dict[str, Any] | None = None
+    model_status: int = 200
 
     def reply(self, body: dict[str, Any], *, status: int = 200) -> None:
         self.responses.append(
@@ -98,6 +100,21 @@ class FakeApi:
         self.requests.append(request)
         if request.url.path.endswith("/count_tokens"):
             return httpx2.Response(200, json={"input_tokens": self.counted_tokens})
+        if request.url.path.startswith("/v1/models/"):
+            if self.model_status != 200:
+                return httpx2.Response(
+                    self.model_status,
+                    json={"type": "error", "error": {"type": "error", "message": "no"}},
+                )
+            model_id = request.url.path.rsplit("/", 1)[-1]
+            body = {
+                "id": model_id,
+                "type": "model",
+                "display_name": model_id,
+                "created_at": "2026-01-01T00:00:00Z",
+                **(self.model_info or {}),
+            }
+            return httpx2.Response(200, json=body)
         if not self.responses:
             raise AssertionError("unexpected messages.create call")
         return self.responses.pop(0)
