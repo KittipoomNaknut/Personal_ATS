@@ -60,6 +60,11 @@ uv run atsctl logs -n 50
 uv run atsctl stop      # stops the gateway; no key is left anywhere
 ```
 
+At startup the gateway checks the key and the fallback model with the free Models API
+and refuses to start if either is unusable. Before the first real key, follow
+[docs/FIRST_LIVE_RUN.md](docs/FIRST_LIVE_RUN.md) and run
+`uv run python scripts/security_checklist.py`.
+
 ### AI analysis and billing clients
 
 With the gateway running, add `--ai` to have Claude judge every requirement of
